@@ -2,8 +2,9 @@
 #include <MWIT_WiFi.h>
 #include <Log.h>
 #include <OTA.h>
+#include "credentials.h"
 
-MWITWiFi wifi("MWIT-WiFi", "s6709222", "s6709222", "g++-std=c++17");
+MWITWiFi wifi(WIFI_SSID, WIFI_IDENTITY, WIFI_USERNAME, WIFI_PASSWORD);
 OTA ota("ota-bootstrap");
 
 void setup() {

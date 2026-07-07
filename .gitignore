@@ -46,3 +46,4 @@ build/
 *credentials*
 *secret*
 .env
+include/credentials.h

@@ -6,16 +6,16 @@
 #include <LED.h>
 #include <OTA.h>
 #include <time.h>
+#include "credentials.h"
 
 #define DHTPIN          32
 #define LED_READING_PIN 5
 #define LED_ERROR_PIN   2
 
-MWITWiFi wifi("MWIT-WiFi", "s6709222", "s6709222", "g++-std=c++17");
+MWITWiFi wifi(WIFI_SSID, WIFI_IDENTITY, WIFI_USERNAME, WIFI_PASSWORD);
 OTA ota("activity6-ota");
 
-GGSheet sheet("script.google.com",
-    "/macros/s/AKfycbwark0PAVrM48JAUuynaW8O_9JuJmEOfvVuC5N4PqbBsdD-1OHRUaRd3FusJAWCSQo4ww/exec");
+GGSheet sheet(SHEETS_HOST, SHEETS_PATH);
 
 DHT22_Sensor dht22(DHTPIN);
 LED ledReading(LED_READING_PIN);

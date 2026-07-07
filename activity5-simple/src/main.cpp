@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_wpa2.h>
+#include "credentials.h"
 
 #define NUM_LEDS 3
 
@@ -8,10 +9,10 @@ const int ledPins[NUM_LEDS] = {2, 4, 5};
 bool ledStates[NUM_LEDS] = {false, false, false};
 const char* ledColors[NUM_LEDS] = {"blue", "white", "yellow"};
 
-const char* ssid = "MWIT-WiFi";
-const char* eap_identity = "s6709222";
-const char* eap_username = "s6709222";
-const char* eap_password = "g++-std=c++17";
+const char* ssid = WIFI_SSID;
+const char* eap_identity = WIFI_IDENTITY;
+const char* eap_username = WIFI_USERNAME;
+const char* eap_password = WIFI_PASSWORD;
 
 WiFiServer server(80);
 

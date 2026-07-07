@@ -104,11 +104,25 @@ The `lib/` directory contains reusable components shared across activities:
 
 ## Configuration
 
-Update credentials in each activity's `src/main.cpp` before building:
+Credentials are loaded from `include/credentials.h` (gitignored). Copy the template and fill in your values:
+
+```bash
+cp include/credentials.example.h include/credentials.h
+```
+
+Edit `include/credentials.h` with your network credentials:
 
 - WiFi SSID and WPA2-Enterprise credentials (EAP identity, username, password)
-- Google Sheets Web App URL (activity 6)
-- OTA hostname and auth password (activity 6)
+- Google Sheets Web App URL (activity 6 only)
+- OTA hostname and auth password (activity 6 only)
+
+The defines in `credentials.h` use `#ifndef` guards, so values can also be overridden via PlatformIO `build_flags` in each activity's `platformio.ini`:
+
+```ini
+build_flags =
+    -D WIFI_SSID='"your-ssid"'
+    -D WIFI_PASSWORD='"your-password"'
+```
 
 ## License
 

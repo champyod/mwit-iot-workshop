@@ -2,14 +2,15 @@
 #include <DHT.h>
 #include <WiFi.h>
 #include <esp_wpa2.h>
+#include "credentials.h"
 
 #define DHTPIN 4
 #define DHTTYPE DHT22
 
-const char* ssid = "MWIT-WiFi";
-const char* eap_identity = "s6709222";
-const char* eap_username = "s6709222";
-const char* eap_password = "g++-std=c++17";
+const char* ssid = WIFI_SSID;
+const char* eap_identity = WIFI_IDENTITY;
+const char* eap_username = WIFI_USERNAME;
+const char* eap_password = WIFI_PASSWORD;
 
 DHT dht(DHTPIN, DHTTYPE);
 WiFiServer server(80);

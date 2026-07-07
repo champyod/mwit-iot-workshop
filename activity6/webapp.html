@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DHT22 Sensor Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js">
+  </script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      /* BACKGROUND */
+      --bg-primary:   oklch(3% 0.008 260);
+      --bg-secondary: oklch(6% 0.012 260);
+      --bg-tertiary:  oklch(10% 0.015 260);
+      --bg-surface:   oklch(100% 0 0 / 3%);
+
+      /* BORDER */
+      --border:        oklch(100% 0 0 / 6%);
+      --border-strong: oklch(100% 0 0 / 10%);
+
+      /* TEXT */
+      --text-primary:    oklch(96% 0.003 260);
+      --text-secondary:  oklch(69% 0.01 260);
+      --text-muted:      oklch(55% 0.015 260);
+      --text-chart-tick: oklch(42% 0.012 260);
+
+      /* 5-COLOR WHEEL  (anchored pink ~351°, ~72° apart)
+         c1 pink(351°) primary | c2 amber(63°) warm | c3 green(135°) success
+         c4 cyan(207°) cool    | c5 purple(279°) secondary */
+      --c1: oklch(52% 0.125 351);
+      --c2: oklch(70% 0.14 63);
+      --c3: oklch(62% 0.16 135);
+      --c4: oklch(60% 0.10 207);
+      --c5: oklch(50% 0.12 279);
+
+      --c1-soft: oklch(52% 0.125 351 / 12%);
+      --c1-glow: oklch(52% 0.125 351 / 30%);
+
+      /* STATUS */
+      --green:        var(--c3);
+      --green-soft:   oklch(62% 0.16 135 / 10%);
+      --green-border: oklch(62% 0.16 135 / 25%);
+      --green-text:   oklch(72% 0.14 135);
+      --yellow:        var(--c2);
+      --yellow-soft:   oklch(70% 0.14 63 / 10%);
+      --yellow-border: oklch(70% 0.14 63 / 25%);
+      --red:           oklch(57% 0.19 25);
+      --red-soft:      oklch(57% 0.19 25 / 10%);
+      --red-border:    oklch(57% 0.19 25 / 25%);
+      --orange: oklch(65% 0.15 45);
+      --blue:   var(--c4);
+
+      /* THRESHOLD */
+      --temp-cool:  var(--c4);
+      --temp-warm:  var(--c2);
+      --temp-hot:   var(--red);
+      --humid-dry:  var(--orange);
+      --humid-good: var(--c3);
+      --humid-wet:  var(--c4);
+      --heat-low:   var(--c4);
+      --heat-mid:   var(--c2);
+      --heat-high:  var(--red);
+
+      /* CHART */
+      --chart-temp:  var(--c1);
+      --chart-humid: var(--c4);
+      --chart-heat:  var(--c2);
+
+      /* EFFECTS */
+      --effect-subtle:    oklch(100% 0 0 / 4%);
+      --effect-shimmer-a: oklch(100% 0 0 / 3%);
+      --effect-shimmer-b: oklch(100% 0 0 / 6%);
+      --effect-shimmer-c: oklch(100% 0 0 / 7%);
+      --effect-shadow:    oklch(0% 0 0 / 25%);
+      --effect-table-bg:  oklch(100% 0 0 / 2%);
+      --effect-scrollbar: oklch(100% 0 0 / 8%);
+      --effect-axis:      oklch(100% 0 0 / 8%);
+      --effect-grid:      oklch(100% 0 0 / 3%);
+      --effect-canvas-bg: oklch(100% 0 0 / 5%);
+
+      /* OLD ALIASES  (backward compat) */
+      --bg-deep:     var(--bg-primary);
+      --bg-card:     var(--bg-secondary);
+      --bg-elevated: var(--bg-tertiary);
+      --pk-900: oklch(22% 0.06 346);
+      --pk-800: oklch(32% 0.075 347);
+      --pk-700: var(--c2);
+      --pk-600: oklch(47% 0.115 350);
+      --pk-500: var(--c1);
+      --pk-400: var(--c4);
+      --pk-300: oklch(65% 0.09 355);
+      --pk-200: oklch(72% 0.065 358);
+      --pk-100: oklch(80% 0.04 0);
+      --pk-glow: var(--c1-glow);
+
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      background-image:
+        radial-gradient(ellipse at 20% 50%, oklch(52% 0.125 351 / 25%) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, oklch(42% 0.10 350 / 20%) 0%, transparent 50%);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    .app-layout {
+      min-height: 100vh;
+    }
+
+    .dashboard {
+      width: 100%; max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 40px);
+      padding: 20px;
+    }
+
+    /* HEADER */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 24px;
+      animation: fadeDown 0.5s ease-out both;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 12px; }
+
+    .header-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--pk-500), var(--pk-700));
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px var(--pk-glow);
+      flex-shrink: 0;
+    }
+    .header-icon svg { width: 20px; height: 20px; }
+
+    .header-title h1 {
+      font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+      color: var(--text-primary);
+    }
+    .header-title p { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+    .header-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .header-controls select {
+      background: var(--bg-surface); color: var(--text-secondary);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px 10px; font-size: 11px; font-family: 'Inter', sans-serif;
+      cursor: pointer; outline: none;
+      -webkit-appearance: none; appearance: none;
+      transition: border-color 0.2s;
+    }
+    .header-controls select:hover { border-color: var(--border-strong); }
+    .header-controls select option { background: var(--bg-elevated); color: var(--text-primary); }
+    #tzSelect { min-width: 150px; }
+    #formSelect { min-width: 160px; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 100px;
+      font-size: 11px; font-weight: 500;
+    }
+    .badge-live {
+      background: var(--green-soft); border: 1px solid var(--green-border);
+      color: var(--green-text);
+    }
+    .badge-waiting {
+      background: var(--yellow-soft); border: 1px solid var(--yellow-border);
+      color: var(--yellow);
+    }
+    .badge-error {
+      background: var(--red-soft); border: 1px solid var(--red-border);
+      color: var(--red);
+    }
+    .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .badge-live .badge-dot { background: var(--green); animation: pulse-dot 2s ease-in-out infinite; }
+    .badge-waiting .badge-dot { background: var(--yellow); animation: pulse-dot 2s ease-in-out infinite; }
+    .badge-stale {
+      background: var(--yellow-soft); border: 1px solid var(--yellow-border);
+      color: var(--yellow);
+    }
+    .badge-error .badge-dot { background: var(--red); }
+    .badge-live .badge-dot { background: var(--green); }
+    .badge-stale .badge-dot { background: var(--yellow);       }
+
+    /* HEADER TIME */
+    .header-time {
+      display: flex; flex-direction: column; gap: 1px;
+      animation: fadeDown 0.5s ease-out both;
+    }
+    .header-time .clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 36px; font-weight: 700;
+      letter-spacing: 1px; line-height: 1.15;
+      color: var(--text-primary);
+    }
+
+    /* LANG BUTTON */
+    .lang-btn {
+      width: 34px; height: 34px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-secondary);
+      transition: border-color 0.2s, color 0.2s;
+      padding: 0;
+    }
+    .lang-btn:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+    .lang-btn svg {
+      width: 18px; height: 18px;
+    }
+
+    /* METRIC GRID */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: oklch(6% 0.012 260 / 20%);
+      backdrop-filter: blur(60px); -webkit-backdrop-filter: blur(60px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 18px 18px;
+      position: relative;
+      overflow: hidden;
+      animation: fadeUp 0.5s ease-out both;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 32px var(--effect-shadow);
+    }
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--effect-axis), transparent);
+    }
+    .card:nth-child(1) { animation-delay: 0s; }
+    .card:nth-child(2) { animation-delay: 0.08s; }
+    .card:nth-child(3) { animation-delay: 0.16s; }
+
+    .card-label {
+      font-size: 10px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1.2px;
+      margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .card-main {
+      display: flex; align-items: baseline; gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .card-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 34px; font-weight: 700;
+      letter-spacing: -0.5px; line-height: 1;
+      transition: color 0.4s ease;
+    }
+    .card-unit {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px; font-weight: 400;
+      color: var(--text-secondary);
+    }
+
+    .trend-lg {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px; font-weight: 700;
+      position: absolute; top: 18px; right: 18px;
+      white-space: nowrap; line-height: 1;
+    }
+    .trend-up   { color: var(--red); }
+    .trend-down { color: var(--pk-500); }
+    .trend-flat { color: var(--text-muted); }
+    .trend-lg.loading {
+      width: 64px; height: 20px;
+      background: linear-gradient(90deg, var(--effect-shimmer-a) 25%, var(--effect-shimmer-c) 50%, var(--effect-shimmer-a) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 4px;
+    }
+    .card-stats.loading {
+      display: flex; gap: 8px; margin-top: 4px;
+    }
+    .card-stats.loading > .sk-stat {
+      height: 12px; width: 52px;
+      background: linear-gradient(90deg, var(--effect-shimmer-a) 25%, var(--effect-shimmer-b) 50%, var(--effect-shimmer-a) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 4px;
+    }
+
+    .card-stats {
+      display: flex; gap: 12px;
+      font-size: 10px; color: var(--text-muted);
+      font-weight: 500; margin-bottom: 8px;
+    }
+    .card-stats span { display: flex; align-items: center; gap: 3px; }
+    .card-stats .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600; color: var(--text-secondary);
+    }
+
+    .sparkline-wrap {
+      height: 28px; margin-top: 4px;
+    }
+    .sparkline-wrap canvas {
+      width: 100%; height: 100%; display: block;
+      border-radius: 4px;
+    }
+
+    /* CHART SECTION */
+    .section-card {
+      background: oklch(6% 0.012 260 / 20%);
+      backdrop-filter: blur(60px); -webkit-backdrop-filter: blur(60px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 14px;
+      animation: fadeUp 0.5s ease-out 0.2s both;
+    }
+
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+    }
+
+    .table-pagination {
+      display: flex; align-items: center; gap: 12px;
+    }
+
+    .pagination-limits, .pagination-nav {
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    .page-indicator {
+      font-size: 11px; font-weight: 500; color: var(--text-muted);
+      margin: 0 4px;
+    }
+
+    .total-count-badge {
+      font-size: 11px; font-weight: 600; color: var(--text-secondary);
+      background: var(--bg-surface); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 8px;
+    }
+
+
+    .table-pagination {
+      display: flex; align-items: center; gap: 12px;
+    }
+
+    .pagination-limits, .pagination-nav {
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    .page-indicator {
+      font-size: 11px; font-weight: 500; color: var(--text-muted);
+      margin: 0 4px;
+    }
+
+    .section-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .range-btns { display: flex; gap: 4px; }
+    .range-btn {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 11px; font-weight: 500;
+      padding: 4px 10px; border-radius: 6px;
+      cursor: pointer; transition: all 0.15s;
+      font-family: 'Inter', sans-serif;
+    }
+    .range-btn:hover { border-color: var(--border-strong); color: var(--text-secondary); }
+    .range-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .range-btn.active {
+      background: var(--pk-500); border-color: var(--pk-500);
+      color: white;
+    }
+
+    /* DATASET TOGGLES */
+    .dataset-toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ds-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px 3px 7px; border-radius: 100px;
+      font-size: 10px; font-weight: 500; cursor: pointer;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      font-family: 'Inter', sans-serif;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .ds-pill .ds-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .ds-pill:hover { border-color: var(--border); }
+    .ds-pill.active { background: oklch(100% 0 0 / 4%); border-color: var(--border); }
+    .ds-pill.hidden { opacity: 0.35; text-decoration: line-through; }
+
+    /* TABLE COLUMN HIDE */
+    [data-column].hidden { display: none; }
+
+    .chart-wrap { position: relative; width: 100%; height: 220px; }
+
+    /* TABLE SECTION */
+    .table-wrap {
+      overflow: hidden;
+      animation: fadeUp 0.5s ease-out 0.3s both;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 0;
+    }
+    .table-wrap .section-header {
+      flex-shrink: 0;
+    }
+    .table-wrap thead {
+      position: sticky; top: 0;
+      z-index: 2;
+    }
+    .table-wrap table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      font-size: 12px;
+    }
+    .table-wrap th {
+      text-align: left; padding: 8px 12px;
+      font-weight: 600; font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: oklch(6% 0.012 260 / 30%);
+    }
+    .table-wrap td {
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .table-wrap tr:hover td {
+      background: var(--effect-table-bg);
+    }
+    .table-scroll {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .table-scroll::-webkit-scrollbar { width: 4px; }
+    .table-scroll::-webkit-scrollbar-track { background: transparent; }
+    .table-scroll::-webkit-scrollbar-thumb { background: var(--effect-scrollbar); border-radius: 4px; }
+
+
+
+    /* SKELETON */
+    .skeleton {
+      background: linear-gradient(90deg, var(--effect-shimmer-a) 25%, var(--effect-shimmer-b) 50%, var(--effect-shimmer-a) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 6px;
+    }
+    .skeleton-h36 { height: 36px; width: 120px; }
+    .skeleton-h14 { height: 14px; width: 80px; margin-top: 6px; }
+    .skeleton-h28 { height: 28px; width: 100%; }
+
+    /* CARD SPINNER */
+    .card-value.loading {
+      display: inline-flex; align-items: center; gap: 8px;
+      min-width: 60px; min-height: 32px;
+    }
+    .card-value.loading::before {
+      content: '';
+      width: 20px; height: 20px;
+      border: 2.5px solid var(--effect-scrollbar);
+      border-top-color: var(--pk-500);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    .card-value.loading::after {
+      content: '--';
+      color: var(--text-muted);
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }
+
+    /* CHART SKELETON */
+    .chart-skeleton {
+      opacity: 0; visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+      position: absolute; inset: 0;
+      padding: 20px 24px;
+      z-index: 4;
+      overflow: hidden;
+    }
+    .chart-skeleton.active { opacity: 1; visibility: visible; }
+    .chart-skeleton svg { width: 100%; height: 100%; display: block; }
+    .chart-skeleton .sk-gridline { stroke: var(--effect-subtle); stroke-width: 1; stroke-dasharray: 3 3; }
+    .chart-skeleton .sk-axis { stroke: var(--effect-axis); stroke-width: 1.5; }
+    .chart-skeleton .sk-wave {
+      stroke: var(--border-strong); stroke-width: 2; fill: none;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .chart-skeleton .sk-shimmer {
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, var(--effect-subtle) 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    /* TABLE SKELETON */
+    .table-skeleton {
+      padding: 12px 16px 0;
+    }
+    .table-skeleton.active { display: block; }
+    .table-skeleton:not(.active) { display: none; }
+    .table-skeleton .sk-table-rows { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+    .table-skeleton .sk-tr { display: flex; gap: 12px; }
+    .table-skeleton .sk-td {
+      height: 14px;
+      background: linear-gradient(90deg, var(--effect-shimmer-a) 25%, var(--effect-shimmer-c) 50%, var(--effect-shimmer-a) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 8px;
+    }
+    .table-skeleton .sk-hdr { height: 16px; background: var(--effect-shimmer-b); border-radius: 8px; }
+    .table-skeleton .sk-td:nth-child(1) { width: 38%; }
+    .table-skeleton .sk-td:nth-child(2) { width: 18%; }
+    .table-skeleton .sk-td:nth-child(3) { width: 22%; }
+    .table-skeleton .sk-td:nth-child(4) { width: 22%; }
+
+    /* FALLBACK */
+    .fallback-msg {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px;
+      z-index: 3;
+    }
+    .fallback-icon { font-size: 24px; opacity: 0.25; }
+    .fallback-text { font-size: 13px; color: var(--text-muted); letter-spacing: 0.3px; }
+
+    /* DATE RANGE PICKERS */
+    .date-range-row {
+      display: flex; align-items: center; gap: 6px;
+      flex-wrap: wrap;
+      padding: 6px 16px 0;
+    }
+    .dt-input {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      color: var(--text-secondary); font-size: 11px;
+      padding: 5px 8px; border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      min-width: 155px;
+      color-scheme: dark;
+    }
+    .dt-input:focus { outline: none; border-color: var(--pk-500); }
+    .dt-sep { color: var(--text-muted); font-size: 12px; }
+    .dt-apply {
+      background: var(--pk-500); border: none;
+      color: white; font-size: 10px; font-weight: 600;
+      padding: 5px 12px; border-radius: 6px;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      letter-spacing: 0.3px;
+    }
+    .dt-apply:hover { filter: brightness(1.15); }
+    .dt-clear {
+      background: transparent; border: 1px solid var(--border-strong);
+      color: var(--text-muted); font-size: 13px;
+      padding: 4px 8px; border-radius: 6px;
+      cursor: pointer; line-height: 1;
+    }
+    .dt-clear:hover { border-color: var(--pk-500); color: var(--text-secondary); }
+
+    /* COLOR THEMES */
+    .temp-cool  { color: var(--temp-cool); }  .temp-warm  { color: var(--temp-warm); }  .temp-hot   { color: var(--temp-hot); }
+    .humid-dry  { color: var(--humid-dry); }  .humid-good { color: var(--humid-good); }  .humid-wet  { color: var(--humid-wet); }
+    .heat-low   { color: var(--heat-low); }  .heat-mid   { color: var(--heat-mid); }  .heat-high  { color: var(--heat-high); }
+
+    /* ANIMATIONS */
+    @keyframes fadeUp   { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer  { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* RESPONSIVE */
+    @media (max-width: 860px) {
+    }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .card-value { font-size: 28px; }
+      .trend-lg { font-size: 15px; top: 14px; right: 14px; }
+      .header-time .clock { font-size: 26px; }
+    }
+    @media (max-width: 480px) {
+      .grid { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: stretch; }
+      .header-controls { justify-content: flex-start; }
+      .chart-wrap { height: 160px; }
+      .dashboard { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <div class="dashboard">
+
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-time" id="headerTime">
+        <span class="clock" id="headerClock">--:--:--</span>
+      </div>
+      <div class="header-controls">
+        <div class="total-count-badge" id="globalTotalCount">Total: --</div>
+        <button class="lang-btn" id="langBtn" title="Switch language">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/>
+          </svg>
+        </button>
+        <select id="tzSelect"></select>
+        <select id="formSelect"><option value="">Latest run</option></select>
+      </div>
+    </header>
+
+    <!-- METRIC CARDS -->
+    <div class="grid" id="cardGrid">
+      <!-- Temperature -->
+      <div class="card">
+        <div class="card-label">
+          <svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor">
+            <path d="M136,153V88a8,8,0,0,0-16,0v65a32,32,0,1,0,16,0Zm-8,47a16,16,0,1,1,16-16A16,16,0,0,1,128,200Zm40-66V48a40,40,0,0,0-80,0v86a64,64,0,1,0,80,0Zm-40,98a48,48,0,0,1-27.42-87.4A8,8,0,0,0,104,138V48a24,24,0,0,1,48,0v90a8,8,0,0,0,3.42,6.56A48,48,0,0,1,128,232Z"/>
+          </svg>
+          <span data-i18n="temperature">Temperature</span>
+        </div>
+        <div class="card-main">
+          <span class="card-value loading" id="tempValue"></span>
+          <span class="card-unit">°C</span>
+        </div>
+          <span class="trend-lg loading" id="tempTrend"><span class="sk-stat"></span></span>
+        <div class="card-stats loading" id="tempStats"><span class="sk-stat"></span><span class="sk-stat"></span><span class="sk-stat"></span></div>
+        <div class="sparkline-wrap"><canvas id="tempSpark"></canvas></div>
+      </div>
+
+      <!-- Humidity -->
+      <div class="card">
+        <div class="card-label">
+          <svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor">
+            <path d="M174,47.75a254.19,254.19,0,0,0-41.45-38.3,8,8,0,0,0-9.18,0A254.19,254.19,0,0,0,82,47.75C54.51,79.32,40,112.6,40,144a88,88,0,0,0,176,0C216,112.6,201.49,79.32,174,47.75ZM128,216a72.08,72.08,0,0,1-72-72c0-57.23,55.47-105,72-118,16.53,13,72,60.75,72,118A72.08,72.08,0,0,1,128,216Zm55.89-62.66a57.6,57.6,0,0,1-46.56,46.55A8.75,8.75,0,0,1,136,200a8,8,0,0,1-1.32-15.89c16.57-2.79,30.63-16.85,33.44-33.45a8,8,0,0,1,15.78,2.68Z"/>
+          </svg>
+          <span data-i18n="humidity">Humidity</span>
+        </div>
+        <div class="card-main">
+          <span class="card-value loading" id="humidValue"></span>
+          <span class="card-unit">%</span>
+        </div>
+          <span class="trend-lg loading" id="humidTrend"><span class="sk-stat"></span></span>
+        <div class="card-stats loading" id="humidStats"><span class="sk-stat"></span><span class="sk-stat"></span><span class="sk-stat"></span></div>
+        <div class="sparkline-wrap"><canvas id="humidSpark"></canvas></div>
+      </div>
+
+      <!-- Heat Index -->
+      <div class="card">
+        <div class="card-label">
+          <svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor">
+            <path d="M173.79,51.48a221.25,221.25,0,0,0-41.67-34.34,8,8,0,0,0-8.24,0A221.25,221.25,0,0,0,82.21,51.48C54.59,80.48,40,112.47,40,144a88,88,0,0,0,176,0C216,112.47,201.41,80.48,173.79,51.48ZM96,184c0-27.67,22.53-47.28,32-54.3,9.48,7,32,26.63,32,54.3a32,32,0,0,1-64,0Zm77.27,15.93A47.8,47.8,0,0,0,176,184c0-44-42.09-69.79-43.88-70.86a8,8,0,0,0-8.24,0C122.09,114.21,80,140,80,184a47.8,47.8,0,0,0,2.73,15.93A71.88,71.88,0,0,1,56,144c0-34.41,20.4-63.15,37.52-81.19A216.21,216.21,0,0,1,128,33.54a215.77,215.77,0,0,1,34.48,29.27C193.49,95.5,200,125,200,144A71.88,71.88,0,0,1,173.27,199.93Z"/>
+          </svg>
+          <span data-i18n="heatIndex">Heat Index</span>
+        </div>
+        <div class="card-main">
+          <span class="card-value loading" id="heatValue"></span>
+          <span class="card-unit">°C</span>
+        </div>
+          <span class="trend-lg loading" id="heatTrend"><span class="sk-stat"></span></span>
+        <div class="card-stats loading" id="heatStats"><span class="sk-stat"></span><span class="sk-stat"></span><span class="sk-stat"></span></div>
+        <div class="sparkline-wrap"><canvas id="heatSpark"></canvas></div>
+      </div>
+    </div>
+
+    <!-- HISTORY CHART -->
+    <div class="section-card">
+      <div class="section-header">
+        <span class="section-title" data-i18n="history">History</span>
+        <div class="dataset-toggles" id="datasetToggles">
+          <span class="ds-pill active" data-dataset="temperature">
+            <span class="ds-dot" style="background:oklch(52% 0.125 351)"></span>Temp
+          </span>
+          <span class="ds-pill active" data-dataset="humidity">
+            <span class="ds-dot" style="background:oklch(60% 0.10 207)"></span>Humidity
+          </span>
+          <span class="ds-pill active" data-dataset="heatIndex">
+            <span class="ds-dot" style="background:oklch(70% 0.14 63)"></span>Heat
+          </span>
+        </div>
+        <div class="range-btns" id="rangeBtns">
+          <button class="range-btn" data-range="20">20</button>
+          <button class="range-btn active" data-range="50">50</button>
+          <button class="range-btn" data-range="100">100</button>
+          <button class="range-btn" data-range="0" data-i18n="all">All</button>
+        </div>
+      </div>
+      <div class="date-range-row" id="chartDateRow">
+        <input type="datetime-local" id="chartDateStart" class="dt-input" placeholder="From">
+        <span class="dt-sep">→</span>
+        <input type="datetime-local" id="chartDateEnd" class="dt-input" placeholder="To">
+        <button class="dt-apply" id="chartDateApply">Apply</button>
+        <button class="dt-clear" id="chartDateClear">✕</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="historyChart"></canvas>
+        <div class="chart-skeleton active" id="chartSkeleton">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line class="sk-gridline" x1="10" y1="20" x2="95" y2="20" />
+            <line class="sk-gridline" x1="10" y1="40" x2="95" y2="40" />
+            <line class="sk-gridline" x1="10" y1="60" x2="95" y2="60" />
+            <line class="sk-gridline" x1="10" y1="80" x2="95" y2="80" />
+            <line class="sk-axis" x1="10" y1="5" x2="10" y2="92" />
+            <line class="sk-axis" x1="10" y1="92" x2="95" y2="92" />
+            <path class="sk-wave" d="M 12 75 C 28 75, 32 35, 48 35 C 58 35, 62 60, 78 60 C 88 60, 90 70, 95 70" />
+          </svg>
+          <div class="sk-shimmer"></div>
+        </div>
+        <div class="fallback-msg" id="chartFallback" style="display:none">
+          <span class="fallback-icon">⚠</span>
+          <span class="fallback-text" data-i18n="loadFailed">Failed to load data</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT READINGS TABLE -->
+    <div class="section-card table-wrap">
+<div class="section-header">
+        <span class="section-title" data-i18n="recentReadings">Recent Readings</span>
+        <div class="table-pagination" id="tablePagination">
+          <div class="pagination-limits">
+            <button class="range-btn" data-limit="20">20</button>
+            <button class="range-btn active" data-limit="50">50</button>
+            <button class="range-btn" data-limit="100">100</button>
+          </div>
+          <div class="pagination-nav">
+            <button class="range-btn" id="tablePrevPage" title="Previous Page">&lt;</button>
+            <span class="page-indicator">Page <span id="currentPage">1</span></span>
+            <button class="range-btn" id="tableNextPage" title="Next Page">&gt;</button>
+          </div>
+        </div>
+      </div>
+      <div class="date-range-row" id="tableDateRow">
+        <input type="datetime-local" id="tableDateStart" class="dt-input" placeholder="From">
+        <span class="dt-sep">→</span>
+        <input type="datetime-local" id="tableDateEnd" class="dt-input" placeholder="To">
+        <button class="dt-apply" id="tableDateApply">Apply</button>
+        <button class="dt-clear" id="tableDateClear">✕</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th data-i18n="time">Time</th>
+            <th data-column="temperature" data-i18n="temperature">Temperature</th>
+            <th data-column="humidity" data-i18n="humidity">Humidity</th>
+            <th data-column="heatIndex" data-i18n="heatIndex">Heat Index</th>
+          </tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="table-skeleton active" id="tableSkeleton">
+          <div class="sk-table-rows">
+            <div class="sk-tr"><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div></div>
+            <div class="sk-tr"><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div></div>
+            <div class="sk-tr"><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div></div>
+            <div class="sk-tr"><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div></div>
+            <div class="sk-tr"><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div></div>
+            <div class="sk-tr"><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div></div>
+            <div class="sk-tr"><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div><div class="sk-td"></div></div>
+          </div>
+        </div>
+        <div class="fallback-msg" id="tableFallback" style="display:none">
+          <span class="fallback-icon">⚠</span>
+          <span class="fallback-text" data-i18n="loadFailed">Failed to load data</span>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /dashboard -->
+  </div><!-- /app-layout -->
+
+  <script>
+    // === TRANSLATIONS ===
+
+    const translations = {
+      en: {
+        title:          'Sensor Monitor',
+        temperature:    'Temperature',
+        humidity:       'Humidity',
+        heatIndex:      'Heat Index',
+        lastUpdate:     'Last update',
+        sessionStarted: 'Session started',
+        live:           'Live',
+        waiting:        'Waiting',
+        error:          'Error',
+        justNow:        'just now',
+        secAgo:         's ago',
+        minAgo:         'm ago',
+        hourAgo:        'h ago',
+        min:            'Min',
+        max:            'Max',
+        avg:            'Avg',
+        recentReadings: 'Recent Readings',
+        history:        'History',
+        language:       'Language',
+        timezone:       'Timezone',
+        noData:         'No data yet',
+        loadFailed:     'Failed to load data',
+        yourLocalTime:  'your local time',
+        feelsLike:      'Feels like',
+        all:            'All',
+        time:           'Time',
+
+        tempLabel:      'Temperature (°C)',
+        humLabel:       'Humidity (%)',
+        heatLabel:      'Heat Index (°C)'
+      },
+      th: {
+        title:          'เครื่องวัดเซ็นเซอร์',
+        temperature:    'อุณหภูมิ',
+        humidity:       'ความชื้น',
+        heatIndex:      'ดัชนีความร้อน',
+        lastUpdate:     'อัปเดตล่าสุด',
+        sessionStarted: 'เซสชันเริ่มต้น',
+        live:           'สด',
+        waiting:        'กำลังรอ',
+        error:          'ข้อผิดพลาด',
+        justNow:        'เมื่อสักครู่',
+        secAgo:         ' วินาทีที่แล้ว',
+        minAgo:         ' นาทีที่แล้ว',
+        hourAgo:        ' ชั่วโมงที่แล้ว',
+        min:            'ต่ำสุด',
+        max:            'สูงสุด',
+        avg:            'เฉลี่ย',
+        recentReadings: 'ข้อมูลล่าสุด',
+        history:        'ประวัติ',
+        language:       'ภาษา',
+        timezone:       'เขตเวลา',
+        noData:         'ยังไม่มีข้อมูล',
+        loadFailed:     'โหลดข้อมูลไม่สำเร็จ',
+        yourLocalTime:  'เวลาท้องถิ่นของคุณ',
+        feelsLike:      'รู้สึกเหมือน',
+        all:            'ทั้งหมด',
+        time:           'เวลา',
+
+        tempLabel:      'อุณหภูมิ (°C)',
+        humLabel:       'ความชื้น (%)',
+        heatLabel:      'ดัชนีความร้อน (°C)'
+      }
+    };
+
+    // === CONSTANTS ===
+
+    const THRESHOLD_TEMP_COOL = 20;
+    const THRESHOLD_TEMP_HOT  = 30;
+    const THRESHOLD_HUMID_DRY = 30;
+    const THRESHOLD_HUMID_WET = 70;
+    const THRESHOLD_HEAT_LOW  = 25;
+    const THRESHOLD_HEAT_HIGH = 35;
+    const POLL_INTERVAL_MS       = 10000;
+    const HISTORY_REFRESH_MS     = 30000;
+    const HISTORY_TIMEOUT_MS     = 12000;
+    const SKELETON_MIN_MS        = 400;
+    const DISPLAY_ROWS           = 20;
+    const SPARKLINE_HEIGHT       = 28;
+    const SPARKLINE_PADDING      = 4;
+    const SPARKLINE_LINE_WIDTH   = 1.5;
+
+    // === STATE ===
+
+    let currentLang   = 'en';
+    let currentTz     = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let historyData   = [];
+    let selectedRange = 50;
+    let selectedForm  = '';
+    let rangeLoading   = false;
+    let historyLoading = false;
+    let tableLoading   = false;
+    let tableLimit     = 50;
+    let tablePage      = 1;
+    let globalStats    = null;
+    let chartInstance  = null;
+    let datasetVisibility = { temperature: true, humidity: true, heatIndex: true };
+    var skeletonShowTimes = {};
+    var chartDateStartValue = null;
+    var chartDateEndValue   = null;
+    var tableDateStartValue = null;
+    var tableDateEndValue   = null;
+    var sheetTimeRange      = null;
+
+    function showSkeleton(element) {
+      element.classList.add('active');
+      skeletonShowTimes[element.id] = Date.now();
+    }
+
+    function hideSkeleton(element) {
+      var shown = skeletonShowTimes[element.id] || 0;
+      var elapsed = Date.now() - shown;
+      var remaining = Math.max(0, SKELETON_MIN_MS - elapsed);
+      if (remaining > 0) {
+        setTimeout(function() { element.classList.remove('active'); }, remaining);
+      } else {
+        element.classList.remove('active');
+      }
+    }
+
+    // === HELPERS ===
+
+    function normalizeTimestamp(timestamp) {
+      if (!timestamp) return null;
+      var dateValue = new Date(timestamp);
+      if (isNaN(dateValue.getTime())) return null;
+      return dateValue.toISOString();
+    }
+
+    function formatAgo(date) {
+      var diffSeconds = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (diffSeconds < 0) diffSeconds = 0;
+      var translationSet = translations[currentLang];
+      if (diffSeconds < 5)  return translationSet.justNow;
+      if (diffSeconds < 60) return diffSeconds + translationSet.secAgo;
+      if (diffSeconds < 3600) return Math.floor(diffSeconds / 60) + translationSet.minAgo;
+      return Math.floor(diffSeconds / 3600) + translationSet.hourAgo;
+    }
+
+    // === DATE RANGE UTILITIES ===
+
+    // Convert datetime-local value (local time) to UTC ISO string
+    function localToUTC(dtLocal) {
+      if (!dtLocal) return null;
+      var d = new Date(dtLocal);
+      if (isNaN(d.getTime())) return null;
+      return d.toISOString();
+    }
+
+    // Convert UTC ISO string to datetime-local format (YYYY-MM-DDTHH:MM)
+    function UTCToLocal(isoStr) {
+      if (!isoStr) return '';
+      var d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2, '0');
+      var day = String(d.getDate()).padStart(2, '0');
+      var h = String(d.getHours()).padStart(2, '0');
+      var min = String(d.getMinutes()).padStart(2, '0');
+      return y + '-' + m + '-' + day + 'T' + h + ':' + min;
+    }
+
+    // Load sheet time range from backend, set min/max on datetime inputs
+    function loadSheetTimeRange() {
+      google.script.run
+        .withSuccessHandler(function(range) {
+          if (range && range.startISO) {
+            sheetTimeRange = range;
+            var startLocal = UTCToLocal(range.startISO);
+            var endLocal = UTCToLocal(range.endISO);
+            ['chartDateStart','chartDateEnd','tableDateStart','tableDateEnd'].forEach(function(id) {
+              var el = document.getElementById(id);
+              if (el) { el.min = startLocal; el.max = endLocal; }
+            });
+          }
+        })
+        .withFailureHandler(function() {})
+        .getSheetTimeRange(selectedForm);
+    }
+
+    // Apply date range: called by Apply buttons
+    function applyDateRange(prefix) {
+      var startVal = document.getElementById(prefix + 'DateStart').value;
+      var endVal   = document.getElementById(prefix + 'DateEnd').value;
+      if (!startVal || !endVal) return;
+      var startUTC = localToUTC(startVal);
+      var endUTC   = localToUTC(endVal);
+      if (!startUTC || !endUTC) return;
+
+      if (prefix === 'chart') {
+        chartDateStartValue = startUTC;
+        chartDateEndValue   = endUTC;
+        window._lastHistoryHash = null;
+        historyData = [];
+        // Deselect range buttons
+        document.querySelectorAll('#rangeBtns .range-btn').forEach(function(b) { b.classList.remove('active'); });
+        loadHistoryData();
+      } else {
+        tableDateStartValue = startUTC;
+        tableDateEndValue   = endUTC;
+        tablePage = 1;
+        loadTableData();
+      }
+    }
+
+    // Clear date range: called by Clear buttons
+    function clearDateRange(prefix) {
+      document.getElementById(prefix + 'DateStart').value = '';
+      document.getElementById(prefix + 'DateEnd').value   = '';
+
+      if (prefix === 'chart') {
+        chartDateStartValue = null;
+        chartDateEndValue   = null;
+        window._lastHistoryHash = null;
+        historyData = [];
+        // Re-activate current range button
+        var activeBtn = document.querySelector('#rangeBtns .range-btn[data-range="' + selectedRange + '"]');
+        if (activeBtn) activeBtn.classList.add('active');
+        loadHistoryData();
+      } else {
+        tableDateStartValue = null;
+        tableDateEndValue   = null;
+        tablePage = 1;
+        loadTableData();
+      }
+    }
+
+    // === LANGUAGE ===
+
+    function getLocale() {
+      try {
+        var languages = navigator.languages || [navigator.language || ''];
+        for (var language of languages) {
+          if (language.startsWith('th')) return 'th';
+        }
+      } catch(error) {}
+      return 'en';
+    }
+
+    // Color palette mirrors CSS variables for JavaScript use
+    var palette = {};
+
+    function initPalette() {
+      var computedStyle = getComputedStyle(document.documentElement);
+      palette.blue    = computedStyle.getPropertyValue('--blue').trim();
+      palette.orange  = computedStyle.getPropertyValue('--orange').trim();
+      palette.red     = computedStyle.getPropertyValue('--red').trim();
+      palette.green   = computedStyle.getPropertyValue('--green').trim();
+      palette.yellow  = computedStyle.getPropertyValue('--yellow').trim();
+      palette.c1 = computedStyle.getPropertyValue('--c1').trim();
+      palette.c2 = computedStyle.getPropertyValue('--c2').trim();
+      palette.c3 = computedStyle.getPropertyValue('--c3').trim();
+      palette.c4 = computedStyle.getPropertyValue('--c4').trim();
+      palette.c5 = computedStyle.getPropertyValue('--c5').trim();
+      palette.tempWarm   = computedStyle.getPropertyValue('--temp-warm').trim();
+      palette.humidGood  = computedStyle.getPropertyValue('--humid-good').trim();
+      palette.pk500 = computedStyle.getPropertyValue('--pk-500').trim();
+      palette.pk400 = computedStyle.getPropertyValue('--pk-400').trim();
+      palette.pk700 = computedStyle.getPropertyValue('--pk-700').trim();
+      palette.textSecondary = computedStyle.getPropertyValue('--text-secondary').trim();
+      palette.textPrimary   = computedStyle.getPropertyValue('--text-primary').trim();
+      palette.textMuted     = computedStyle.getPropertyValue('--text-muted').trim();
+      palette.bgElevated    = computedStyle.getPropertyValue('--bg-elevated').trim();
+      palette.chartTick     = computedStyle.getPropertyValue('--text-chart-tick').trim();
+    }
+
+    function loadLanguage() {
+      try { var saved = localStorage.getItem('dht22_lang'); } catch(error) { var saved = null; }
+      currentLang = saved || getLocale();
+      if (!translations[currentLang]) currentLang = 'en';
+      setupLanguageButton();
+      applyLanguage();
+    }
+
+    function setupLanguageButton() {
+      var button = document.getElementById('langBtn');
+      button.onclick = function() {
+        currentLang = currentLang === 'en' ? 'th' : 'en';
+        localStorage.setItem('dht22_lang', currentLang);
+        applyLanguage();
+        updateChartLabels();
+      };
+    }
+
+    function applyLanguage() {
+      var translationSet = translations[currentLang];
+      document.querySelectorAll('[data-i18n]').forEach(function(element) {
+        var key = element.getAttribute('data-i18n');
+        if (translationSet[key]) element.textContent = translationSet[key];
+      });
+    }
+
+    function loadTimezone() {
+      try { var saved = localStorage.getItem('dht22_timezone'); } catch(error) { var saved = null; }
+      if (saved) {
+        currentTz = saved;
+      } else {
+        currentTz = 'Asia/Bangkok';
+      }
+      populateTimezoneSelect();
+    }
+
+    function populateTimezoneSelect() {
+      var selectElement = document.getElementById('tzSelect');
+      var zones = [
+        { value: 'UTC', label: 'UTC' },
+        { value: 'Asia/Bangkok', label: 'Asia/Bangkok' },
+        { value: 'Asia/Shanghai', label: 'Asia/Shanghai' },
+        { value: 'Asia/Tokyo', label: 'Asia/Tokyo' },
+        { value: 'America/New_York', label: 'America/New_York' },
+        { value: 'America/Chicago', label: 'America/Chicago' },
+        { value: 'America/Denver', label: 'America/Denver' },
+        { value: 'America/Los_Angeles', label: 'America/Los_Angeles' },
+        { value: 'Europe/London', label: 'Europe/London' },
+        { value: 'Europe/Berlin', label: 'Europe/Berlin' },
+      ];
+      var detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      selectElement.innerHTML = '';
+      zones.forEach(function(zone) {
+        var option = document.createElement('option');
+        option.value = zone.value;
+        option.textContent = zone.label;
+        selectElement.appendChild(option);
+      });
+      if (!localStorage.getItem('dht22_timezone')) {
+        var detectedMatch = zones.find(function(zone) { return zone.value === detected; });
+        if (detectedMatch) {
+          currentTz = detectedMatch.value;
+        }
+      }
+      selectElement.value = currentTz;
+      selectElement.onchange = function() {
+        currentTz = selectElement.value;
+        localStorage.setItem('dht22_timezone', currentTz);
+        refreshDisplay();
+      };
+    }
+
+    function getTimezoneAbbreviation(zone) {
+      try {
+        var dateValue = new Date();
+        var parts = dateValue.toLocaleString('en', { timeZone: zone, timeZoneName: 'short' }).split(' ');
+        return parts[parts.length - 1] || zone;
+      } catch(error) { return zone; }
+    }
+
+    function formatTime(dateString, includeWeekday) {
+      var dateValue = new Date(dateString);
+      if (isNaN(dateValue.getTime())) return dateString;
+      try {
+        var options = {
+          timeZone: currentTz,
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+          hour12: false
+        };
+        if (includeWeekday) options.weekday = 'short';
+        return dateValue.toLocaleString(currentLang === 'th' ? 'th-TH' : 'en-US', options);
+      } catch(error) { return dateString; }
+    }
+
+    // === SPARKLINES ===
+
+    function drawSparkline(canvasId, values, color) {
+      var canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      var bounds = canvas.parentElement.getBoundingClientRect();
+      var width = bounds.width || 120;
+      var height = SPARKLINE_HEIGHT;
+      canvas.width = width * 2; canvas.height = height * 2;
+      canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
+      var context = canvas.getContext('2d');
+      context.scale(2, 2);
+      context.clearRect(0, 0, width, height);
+
+      if (!values || values.length < 2) {
+        context.fillStyle = 'rgba(255,255,255,0.05)';
+        context.fillRect(0, 0, width, height);
+        return;
+      }
+
+      var min = Math.min.apply(null, values);
+      var max = Math.max.apply(null, values);
+      var range = max - min || 1;
+      var padding = SPARKLINE_PADDING;
+      var drawHeight = height - padding * 2;
+
+      context.beginPath();
+      for (var i = 0; i < values.length; i++) {
+        var x = (i / (values.length - 1)) * (width - padding * 2) + padding;
+        var y = padding + drawHeight - ((values[i] - min) / range) * drawHeight;
+        if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
+      }
+      context.strokeStyle = color;
+      context.lineWidth = SPARKLINE_LINE_WIDTH;
+      context.stroke();
+
+      context.lineTo((width - padding * 2) + padding, padding + drawHeight);
+      context.lineTo(padding, padding + drawHeight);
+      context.closePath();
+      var gradient = context.createLinearGradient(0, 0, 0, height);
+      function alphaColor(color, alpha) {
+        return color.startsWith('oklch') ? color.replace(')', ' / ' + alpha + ')') : color.replace(')', ',' + alpha + ')').replace('rgb', 'rgba');
+      }
+      gradient.addColorStop(0, alphaColor(color, '0.15'));
+      gradient.addColorStop(1, alphaColor(color, '0'));
+      context.fillStyle = gradient;
+      context.fill();
+    }
+
+    // === HISTORY CHART (Chart.js) ===
+
+    function buildChart(data, range) {
+      var canvas = document.getElementById('historyChart');
+      if (!canvas) return;
+
+      var displayData = data;
+      if (range > 0 && data.length > range) {
+        displayData = data.slice(data.length - range);
+      }
+
+      if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+      if (!displayData || displayData.length === 0) return;
+
+      var labels = displayData.map(function(record) {
+        var normalizedTimestamp = normalizeTimestamp(record.timestamp);
+        if (!normalizedTimestamp) return record.timestamp;
+        var dateValue = new Date(normalizedTimestamp);
+        try {
+          return dateValue.toLocaleString(currentLang === 'th' ? 'th-TH' : 'en-US', {
+            timeZone: currentTz, hour: '2-digit', minute: '2-digit',
+            hour12: false
+          });
+        } catch(error) { return record.timestamp; }
+      });
+
+      var temperatureValues = displayData.map(function(record) { return record.temperature; });
+      var humidityValues   = displayData.map(function(record) { return record.humidity; });
+      var heatIndexValues  = displayData.map(function(record) { return record.heatIndex; });
+
+      var context = canvas.getContext('2d');
+      var translationSet = translations[currentLang];
+
+      chartInstance = new Chart(context, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: translationSet.tempLabel || 'Temperature (°C)',
+              data: temperatureValues,
+              hidden: !datasetVisibility.temperature,
+              borderColor: 'oklch(52% 0.125 351)',
+              backgroundColor: 'oklch(52% 0.125 351 / 8%)',
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHitRadius: 6,
+              tension: 0.3,
+              fill: true,
+              yAxisID: 'yTemp'
+            },
+            {
+              label: translationSet.humLabel || 'Humidity (%)',
+              data: humidityValues,
+              hidden: !datasetVisibility.humidity,
+              borderColor: 'oklch(60% 0.10 207)',
+              backgroundColor: 'oklch(60% 0.10 207 / 8%)',
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHitRadius: 6,
+              tension: 0.3,
+              fill: true,
+              yAxisID: 'yHum'
+            },
+            {
+              label: translationSet.heatLabel || 'Heat Index (°C)',
+              data: heatIndexValues,
+              hidden: !datasetVisibility.heatIndex,
+              borderColor: 'oklch(70% 0.14 63)',
+              backgroundColor: 'oklch(70% 0.14 63 / 8%)',
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHitRadius: 6,
+              tension: 0.3,
+              fill: true,
+              yAxisID: 'yTemp'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'oklch(10% 0.015 260)',
+              titleColor: 'oklch(96% 0.003 260)',
+              bodyColor: 'oklch(69% 0.01 260)',
+              borderColor: 'oklch(100% 0 0 / 6%)',
+              borderWidth: 1,
+              padding: 10,
+              cornerRadius: 8,
+              bodyFont: { family: 'JetBrains Mono', size: 11 }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'oklch(100% 0 0 / 3%)', drawBorder: false },
+              ticks: { color: 'oklch(42% 0.012 260)', maxTicksLimit: 8, font: { size: 10 } }
+            },
+            yTemp: {
+              position: 'left',
+              grid: { color: 'oklch(100% 0 0 / 3%)', drawBorder: false },
+              ticks: {
+                color: 'oklch(52% 0.125 351)', font: { size: 10 },
+                callback: function(value) { return value.toFixed(2) + '°'; }
+              }
+            },
+            yHum: {
+              position: 'right',
+              grid: { display: false },
+              ticks: {
+                color: 'oklch(60% 0.10 207)', font: { size: 10 },
+                callback: function(value) { return value.toFixed(2) + '%'; }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateChartLabels() {
+      if (chartInstance) {
+        var translationSet = translations[currentLang];
+        chartInstance.data.datasets[0].label = translationSet.tempLabel;
+        chartInstance.data.datasets[1].label = translationSet.humLabel;
+        chartInstance.data.datasets[2].label = translationSet.heatLabel || 'Heat Index (°C)';
+        chartInstance.update();
+      }
+    }
+
+    // === DATA LOADING ===
+
+    function getColorByTemp(temperature) { return temperature < THRESHOLD_TEMP_COOL ? 'oklch(60% 0.10 207)' : temperature < THRESHOLD_TEMP_HOT ? 'oklch(70% 0.14 63)' : 'oklch(57% 0.19 25)'; }
+    function getColorByHum(humidity) { return humidity < THRESHOLD_HUMID_DRY ? 'oklch(65% 0.15 45)' : humidity < THRESHOLD_HUMID_WET ? 'oklch(62% 0.16 135)' : 'oklch(60% 0.10 207)'; }
+    function getColorByHeat(heatIndex) { return heatIndex < THRESHOLD_HEAT_LOW ? 'oklch(60% 0.10 207)' : heatIndex < THRESHOLD_HEAT_HIGH ? 'oklch(70% 0.14 63)' : 'oklch(57% 0.19 25)'; }
+
+    function clearCardValues() {
+      if (window._lastDataNoData) return;
+      window._lastDataNoData = true;
+      ['tempValue','humidValue','heatValue'].forEach(function(elementId) {
+        var element = document.getElementById(elementId);
+        if (element) { element.className = 'card-value'; element.textContent = '--'; }
+      });
+    }
+
+    function loadGlobalStats() {
+      google.script.run
+        .withSuccessHandler(function(stats) {
+          if (stats) {
+            globalStats = stats;
+            document.getElementById('globalTotalCount').textContent = 'Total: ' + stats.count;
+            renderStats('tempStats', [stats.temp.min, stats.temp.max, stats.temp.avg], true);
+            renderStats('humidStats', [stats.humid.min, stats.humid.max, stats.humid.avg], true);
+            renderStats('heatStats', [stats.heat.min, stats.heat.max, stats.heat.avg], true);
+          }
+        })
+        .getGlobalStats(selectedForm);
+    }
+
+    function loadLatestData() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          if (data && data.temperature !== undefined) {
+            var dataHash = data.temperature + '|' + data.humidity + '|' + (data.heatIndex || '');
+            if (dataHash === window._lastDataHash) {
+              if (data.timestamp) {
+                document.getElementById('headerClock').textContent = formatTime(data.timestamp, true);
+              }
+              return;
+            }
+            window._lastDataHash = dataHash;
+            renderLatestData(data);
+            loadGlobalStats();
+            if (historyData.length === 0) loadHistoryData();
+          } else {
+            clearCardValues();
+            if (historyData.length === 0) loadHistoryData();
+          }
+        })
+        .withFailureHandler(function() {
+          clearCardValues();
+          if (historyData.length === 0) loadHistoryData();
+        })
+        .getLatestData(selectedForm);
+    }
+
+    var historyLoadTimer = null;
+
+    function loadHistoryData() {
+      if (historyLoading) return;
+      historyLoading = true;
+      // Always show chart skeleton (table fetches independently)
+      showSkeleton(document.getElementById('chartSkeleton'));
+      var chartFallback = document.getElementById('chartFallback');
+      if (chartFallback) chartFallback.style.display = 'none';
+      if (historyLoadTimer) clearTimeout(historyLoadTimer);
+      // Only set timeout for non-All ranges — skip for All and date-range mode
+      var isRangeMode  = selectedRange > 0;
+      var isDateMode   = chartDateStartValue && chartDateEndValue;
+      if (isRangeMode && !isDateMode) {
+        historyLoadTimer = setTimeout(function() {
+          hideSkeleton(document.getElementById('chartSkeleton'));
+          var chartFallbackMsg = document.getElementById('chartFallback');
+          if (chartFallbackMsg) chartFallbackMsg.style.display = 'flex';
+          document.querySelectorAll('.range-btn').forEach(function(b) { b.disabled = false; });
+          rangeLoading = false;
+          historyLoading = false;
+        }, HISTORY_TIMEOUT_MS);
+      }
+      google.script.run
+        .withSuccessHandler(function(data) {
+          hideSkeleton(document.getElementById('chartSkeleton'));
+          if (historyLoadTimer) { clearTimeout(historyLoadTimer); historyLoadTimer = null; }
+          document.querySelectorAll('.range-btn').forEach(function(b) { b.disabled = false; });
+          rangeLoading = false;
+          historyLoading = false;
+          if (data && data.length > 0) {
+            var lastRecord = data[data.length - 1];
+            var dataHash = lastRecord.timestamp + '|' + lastRecord.temperature + '|' + lastRecord.humidity + '|' + lastRecord.heatIndex;
+            if (dataHash === window._lastHistoryHash && historyData.length > 0) {
+              historyLoading = false;
+              return;
+            }
+            window._lastHistoryHash = dataHash;
+            historyData = data;
+            renderHistory();
+            updateSparklines();
+            updateTrends();
+            updateStats();
+          }
+        })
+        .withFailureHandler(function() {
+          hideSkeleton(document.getElementById('chartSkeleton'));
+          if (historyLoadTimer) { clearTimeout(historyLoadTimer); historyLoadTimer = null; }
+          document.querySelectorAll('.range-btn').forEach(function(b) { b.disabled = false; });
+          rangeLoading = false;
+          historyLoading = false;
+        })
+        .getHistoryData(selectedForm, isDateMode ? 0 : selectedRange,
+          isDateMode ? chartDateStartValue : null,
+          isDateMode ? chartDateEndValue : null);
+    }
+
+    // === TABLE (independent fetch, always 100 raw rows) ===
+
+    function loadTableData() {
+      if (tableLoading) return;
+      tableLoading = true;
+      showSkeleton(document.getElementById('tableSkeleton'));
+      var tableBody = document.getElementById('tableBody');
+      if (tableBody) tableBody.innerHTML = '';
+      var tableFallback = document.getElementById('tableFallback');
+      if (tableFallback) tableFallback.style.display = 'none';
+      
+      var offset = (tablePage - 1) * tableLimit;
+      var isTableDateMode = tableDateStartValue && tableDateEndValue;
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          hideSkeleton(document.getElementById('tableSkeleton'));
+          tableLoading = false;
+          if (data && data.length > 0) {
+            renderTable(data);
+            updateTablePaginationUI(data.length);
+          } else {
+            if (tablePage > 1) {
+              tablePage--;
+              loadTableData();
+            } else {
+              document.getElementById('tableBody').innerHTML = '';
+            }
+          }
+        })
+        .withFailureHandler(function() {
+          hideSkeleton(document.getElementById('tableSkeleton'));
+          var tableFallbackMsg = document.getElementById('tableFallback');
+          if (tableFallbackMsg) tableFallbackMsg.style.display = 'flex';
+          tableLoading = false;
+        })
+        .getLatestRawData(selectedForm, isTableDateMode ? 500 : tableLimit, isTableDateMode ? 0 : offset,
+          isTableDateMode ? tableDateStartValue : null,
+          isTableDateMode ? tableDateEndValue : null);
+    }
+
+    function updateTablePaginationUI(count) {
+      document.getElementById('currentPage').textContent = tablePage;
+      var prevBtn = document.getElementById('tablePrevPage');
+      var nextBtn = document.getElementById('tableNextPage');
+      
+      prevBtn.disabled = (tablePage === 1);
+      nextBtn.disabled = (count < tableLimit);
+    }
+
+
+    // === FORM LIST ===
+
+    function loadFormList() {
+      google.script.run
+        .withSuccessHandler(function(formList) {
+          var selectElement = document.getElementById('formSelect');
+          if (!selectElement || !formList || formList.length === 0) return;
+          selectElement.innerHTML = '';
+          var defaultOption = document.createElement('option');
+          defaultOption.value = '';
+          defaultOption.textContent = 'Latest run';
+          selectElement.appendChild(defaultOption);
+          formList.forEach(function(form) {
+            var option = document.createElement('option');
+            option.value = form.name;
+            option.textContent = form.label;
+            selectElement.appendChild(option);
+          });
+          if (selectedForm) {
+            selectElement.value = selectedForm;
+          }
+        })
+        .getFormList();
+    }
+
+    function renderLatestData(data) {
+      var temperature  = parseFloat(data.temperature); if (isNaN(temperature)) temperature = 0;
+      var humidity = parseFloat(data.humidity); if (isNaN(humidity)) humidity = 0;
+      var heatIndex  = data.heatIndex !== undefined ? parseFloat(data.heatIndex) : null;
+
+      setValue('tempValue', temperature.toFixed(1), ['temp-cool','temp-warm','temp-hot'], temperature, THRESHOLD_TEMP_COOL, THRESHOLD_TEMP_HOT);
+      setValue('humidValue', humidity.toFixed(1), ['humid-dry','humid-good','humid-wet'], humidity, THRESHOLD_HUMID_DRY, THRESHOLD_HUMID_WET);
+      if (heatIndex !== null) {
+        setValue('heatValue', heatIndex.toFixed(1), ['heat-low','heat-mid','heat-high'], heatIndex, THRESHOLD_HEAT_LOW, THRESHOLD_HEAT_HIGH);
+      }
+
+      if (data.timestamp) {
+        document.getElementById('headerClock').textContent = formatTime(data.timestamp, true);
+      }
+
+      if (historyData.length > 0) {
+        updateSparklines();
+        updateTrends();
+        updateStats();
+      }
+    }
+
+    function setValue(elementId, text, classList, value, thresholdLow, thresholdHigh) {
+      var element = document.getElementById(elementId);
+      if (!element) return;
+      element.className = 'card-value';
+      if (value < thresholdLow)      element.classList.add(classList[0]);
+      else if (value < thresholdHigh) element.classList.add(classList[1]);
+      else                            element.classList.add(classList[2]);
+      element.textContent = text;
+    }
+
+    // === SPARKLINES, TRENDS, STATS ===
+
+    function updateSparklines() {
+      if (historyData.length < 2) {
+        drawSparkline('tempSpark', null, '');
+        drawSparkline('humidSpark', null, '');
+        drawSparkline('heatSpark', null, '');
+        return;
+      }
+      var temperatureValues = historyData.map(function(record) { return record.temperature; });
+      var humidityValues  = historyData.map(function(record) { return record.humidity; });
+      var heatIndexValues = historyData.map(function(record) { return record.heatIndex; });
+      drawSparkline('tempSpark', temperatureValues, 'oklch(52% 0.125 351)');
+      drawSparkline('humidSpark', humidityValues, 'oklch(60% 0.10 207)');
+      drawSparkline('heatSpark', heatIndexValues, 'oklch(70% 0.14 63)');
+    }
+
+    function updateTrends() {
+      if (historyData.length < 2) {
+        ['tempTrend','humidTrend','heatTrend'].forEach(function(elementId) {
+          var element = document.getElementById(elementId);
+          if (element) { element.className = 'trend-lg trend-flat'; element.textContent = '--'; }
+        });
+        return;
+      }
+      var lastRecord = historyData[historyData.length - 1];
+      var previousRecord = historyData[historyData.length - 2];
+      renderTrend('tempTrend', lastRecord.temperature - previousRecord.temperature, '°');
+      renderTrend('humidTrend', lastRecord.humidity - previousRecord.humidity, '%');
+      renderTrend('heatTrend', lastRecord.heatIndex - previousRecord.heatIndex, '°');
+    }
+
+    function renderTrend(elementId, delta, unit) {
+      var element = document.getElementById(elementId);
+      if (!element) return;
+      if (Math.abs(delta) < 0.05) {
+        element.textContent = '→ 0' + unit;
+        element.className = 'trend-lg trend-flat';
+      } else if (delta > 0) {
+        element.textContent = '↑ ' + delta.toFixed(1) + unit;
+        element.className = 'trend-lg trend-up';
+      } else {
+        element.textContent = '↓ ' + Math.abs(delta).toFixed(1) + unit;
+        element.className = 'trend-lg trend-down';
+      }
+    }
+
+    function updateStats() {
+      if (historyData.length < 2) {
+        ['tempStats','humidStats','heatStats'].forEach(function(elementId) {
+          var element = document.getElementById(elementId);
+          if (element) { element.classList.remove('loading'); element.innerHTML = ''; }
+        });
+        return;
+      }
+      var temperatureValues = historyData.map(function(record) { return record.temperature; });
+      var humidityValues  = historyData.map(function(record) { return record.humidity; });
+      var heatIndexValues = historyData.map(function(record) { return record.heatIndex; });
+      renderStats('tempStats', temperatureValues);
+      renderStats('humidStats', humidityValues);
+      renderStats('heatStats', heatIndexValues);
+    }
+
+    function renderStats(elementId, values, isGlobal) {
+      var element = document.getElementById(elementId);
+      if (!element) return;
+      element.classList.remove('loading');
+      
+      var minimum, maximum, average;
+      if (isGlobal && Array.isArray(values) && values.length === 3) {
+        minimum = values[0];
+        maximum = values[1];
+        average = values[2];
+      } else {
+        minimum = Math.min.apply(null, values);
+        maximum = Math.max.apply(null, values);
+        average = values.reduce(function(a,b) { return a + b; }, 0) / values.length;
+      }
+      
+      var translationSet = translations[currentLang];
+      element.innerHTML =
+        '<span>' + translationSet.min + ': <span class="num">' + minimum.toFixed(1) + '</span></span>' +
+        '<span>' + translationSet.max + ': <span class="num">' + maximum.toFixed(1) + '</span></span>' +
+        '<span>' + translationSet.avg + ': <span class="num">' + average.toFixed(1) + '</span></span>';
+    }
+
+    // === TABLE ===
+
+    function renderTable(data) {
+      var tableBody = document.getElementById('tableBody');
+      if (!tableBody) return;
+      tableBody.innerHTML = '';
+      if (!data || data.length === 0) return;
+      var rows = data.slice().reverse();
+      rows.forEach(function(record) {
+        var normalizedTimestamp = normalizeTimestamp(record.timestamp) || record.timestamp;
+        var tableRow = document.createElement('tr');
+        tableRow.innerHTML =
+          '<td>' + formatTime(normalizedTimestamp, false) + '</td>' +
+          '<td data-column="temperature" style="color:' + getColorByTemp(record.temperature) + '">' + record.temperature.toFixed(1) + ' °C</td>' +
+          '<td data-column="humidity" style="color:' + getColorByHum(record.humidity) + '">' + record.humidity.toFixed(1) + ' %</td>' +
+          '<td data-column="heatIndex" style="color:' + getColorByHeat(record.heatIndex) + '">' + record.heatIndex.toFixed(1) + ' °C</td>';
+        tableBody.appendChild(tableRow);
+      });
+      applyColumnVisibility();
+    }
+
+    function applyColumnVisibility() {
+      Object.keys(datasetVisibility).forEach(function(dataset) {
+        if (!datasetVisibility[dataset]) {
+          document.querySelectorAll('[data-column="' + dataset + '"]').forEach(function(element) {
+            element.classList.add('hidden');
+          });
+        }
+      });
+    }
+
+    // === REFRESH ===
+
+    function renderHistory() {
+      buildChart(historyData, selectedRange);
+    }
+
+    function refreshDisplay() {
+      if (historyData.length > 0) {
+        var latestRecord = historyData[historyData.length - 1];
+        renderLatestData(latestRecord);
+        renderHistory();
+      }
+      loadTableData();
+    }
+
+    // === RANGE BUTTONS ===
+
+    document.addEventListener('click', function(event) {
+      var button = event.target.closest('.range-btn');
+      if (!button) return;
+      if (button.disabled) return;
+
+      // Handle Table Pagination Limits
+      if (button.hasAttribute('data-limit')) {
+        tableLimit = parseInt(button.getAttribute('data-limit'));
+        tablePage = 1;
+        document.querySelectorAll('.pagination-limits .range-btn').forEach(function(b) { b.classList.remove('active'); });
+        button.classList.add('active');
+        loadTableData();
+        return;
+      }
+
+      // Handle Table Page Navigation
+      if (button.id === 'tablePrevPage') {
+        if (tablePage > 1) {
+          tablePage--;
+          loadTableData();
+        }
+        return;
+      }
+      if (button.id === 'tableNextPage') {
+        tablePage++;
+        loadTableData();
+        return;
+      }
+
+      // Handle Chart Range Buttons
+      if (button.hasAttribute('data-range')) {
+        // Clear chart date range when clicking range button
+        document.getElementById('chartDateStart').value = '';
+        document.getElementById('chartDateEnd').value   = '';
+        chartDateStartValue = null;
+        chartDateEndValue   = null;
+
+        document.querySelectorAll('.range-btn').forEach(function(otherButton) { otherButton.disabled = true; });
+        document.querySelectorAll('.range-btn').forEach(function(otherButton) { otherButton.classList.remove('active'); });
+        button.classList.add('active');
+        selectedRange = parseInt(button.getAttribute('data-range')) || 0;
+
+        window._lastHistoryHash = null;
+        rangeLoading = true;
+        showSkeleton(document.getElementById('chartSkeleton'));
+        loadHistoryData();
+      }
+    });
+
+    // === DATASET TOGGLES ===
+
+    document.getElementById('datasetToggles').addEventListener('click', function(event) {
+      var pill = event.target.closest('.ds-pill');
+      if (!pill) return;
+      var dataset = pill.getAttribute('data-dataset');
+      if (!dataset) return;
+
+      datasetVisibility[dataset] = !datasetVisibility[dataset];
+
+      pill.classList.toggle('hidden');
+
+      // Toggle table columns
+      document.querySelectorAll('[data-column="' + dataset + '"]').forEach(function(element) {
+        element.classList.toggle('hidden');
+      });
+
+      // Toggle chart dataset
+      if (chartInstance) {
+        var datasetIndex = { temperature: 0, humidity: 1, heatIndex: 2 }[dataset];
+        if (datasetIndex !== undefined) {
+          chartInstance.data.datasets[datasetIndex].hidden = !datasetVisibility[dataset];
+          chartInstance.update();
+        }
+      }
+    });
+
+    // === FORM SELECT ===
+
+    document.getElementById('formSelect').addEventListener('change', function() {
+      selectedForm = this.value;
+      window._lastDataHash = null;
+      window._lastHistoryHash = null;
+      historyData = [];
+      // Reset date range state on form change
+      document.getElementById('chartDateStart').value = '';
+      document.getElementById('chartDateEnd').value   = '';
+      document.getElementById('tableDateStart').value = '';
+      document.getElementById('tableDateEnd').value   = '';
+      chartDateStartValue = null;
+      chartDateEndValue   = null;
+      tableDateStartValue = null;
+      tableDateEndValue   = null;
+      loadLatestData();
+      loadTableData();
+      loadSheetTimeRange();
+    });
+
+    // === DATE RANGE BUTTONS ===
+
+    document.getElementById('chartDateApply').addEventListener('click', function() { applyDateRange('chart'); });
+    document.getElementById('chartDateClear').addEventListener('click', function() { clearDateRange('chart'); });
+    document.getElementById('tableDateApply').addEventListener('click', function() { applyDateRange('table'); });
+    document.getElementById('tableDateClear').addEventListener('click', function() { clearDateRange('table'); });
+
+    // === BOOT ===
+
+    initPalette();
+    loadLanguage();
+    loadTimezone();
+    loadFormList();
+    loadLatestData();
+    loadTableData();
+    loadSheetTimeRange();
+    setInterval(loadLatestData, POLL_INTERVAL_MS);
+    setInterval(function() { loadHistoryData(); loadTableData(); }, HISTORY_REFRESH_MS);
+  </script>
+</body>
+</html>

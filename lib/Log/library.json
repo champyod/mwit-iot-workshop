@@ -1,0 +1,8 @@
+{
+  "name": "Log",
+  "version": "1.0.0",
+  "description": "Unified logging — writes to both Serial (USB) and telnet (network). Auto-buffers boot messages until first client connects.",
+  "keywords": ["esp32", "logging", "telnet", "serial", "debug"],
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"]
+}

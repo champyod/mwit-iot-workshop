@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 PWM LED Control</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card">
+    <h1>ESP32 PWM Brightness</h1>
+    <p class="sub">Independent slider per LED &middot; 0–255</p>
+
+    <div class="led-row" id="ledRow"></div>
+
+    <div class="footer">
+      <span class="ft-label"><span class="dot online" id="statusDot"></span> <span id="statusText">ONLINE</span></span>
+      <span class="ft-ip" id="ipDisplay"></span>
+    </div>
+  </div>
+  <script src="/script.js"></script>
+</body>
+</html>

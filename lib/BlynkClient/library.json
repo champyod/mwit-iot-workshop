@@ -1,0 +1,29 @@
+{
+  "name": "BlynkClient",
+  "version": "1.0.0",
+  "description": "Blynk IoT client wrapper — connects over an existing WiFi link (WPA2-Enterprise compatible)",
+  "keywords": ["blynk", "esp32", "iot", "dashboard"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-repo/BlynkClient"
+  },
+  "authors": [
+    {
+      "name": "Your Name",
+      "email": "your@email.com"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "dependencies": [
+    {
+      "owner": "blynkkk",
+      "name": "Blynk",
+      "version": "^1.3.0"
+    }
+  ],
+  "export": {
+    "include": "."
+  }
+}

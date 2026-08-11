@@ -6,9 +6,13 @@
 #   pio run -e esp32dev              # builds firmware
 #   ./ota_upload.sh .pio/build/esp32dev/firmware.bin 192.168.1.100
 
+# Load .env fallback (same directory as script)
+ENV_DIR="$(cd "$(dirname "$0")" && pwd)"
+[ -f "$ENV_DIR/.env" ] && source "$ENV_DIR/.env"
+
 FW="${1:-.pio/build/esp32dev/firmware.bin}"
-HOST="${2:-activity6-ota.local}"
-PORT="${3:-3232}"
+HOST="${2:-${OTA_HOST:-activity6-ota.local}}"
+PORT="${3:-${OTA_PORT:-3232}}"
 
 if [ ! -f "$FW" ]; then
     echo "ERR: $FW not found"

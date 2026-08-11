@@ -8,6 +8,20 @@ Usage:
 """
 import sys, os, socket, struct, hashlib, time
 
+def load_env():
+    """Read .env from same directory as this script."""
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    env = {}
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                env[k.strip()] = v.strip()
+    return env
+
 def ota_upload(firmware_path, host, port=3232, password=""):
     if not os.path.exists(firmware_path):
         print(f"[ERR] Firmware not found: {firmware_path}")
@@ -51,11 +65,14 @@ def ota_upload(firmware_path, host, port=3232, password=""):
     return True
 
 if __name__ == "__main__":
+    env = load_env()
+
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <firmware.bin> [host=activity6-ota.local] [port=3232]")
+        print(f"Usage: {sys.argv[0]} <firmware.bin> [host] [port]")
+        print(f"  Default host from .env: {env.get('OTA_HOST', '(not set)')}")
         sys.exit(1)
 
     fw = sys.argv[1]
-    host = sys.argv[2] if len(sys.argv) > 2 else "activity6-ota.local"
-    port = int(sys.argv[3]) if len(sys.argv) > 3 else 3232
+    host = sys.argv[2] if len(sys.argv) > 2 else env.get("OTA_HOST", "activity6-ota.local")
+    port = int(sys.argv[3] if len(sys.argv) > 3 else env.get("OTA_PORT", "3232"))
     sys.exit(0 if ota_upload(fw, host, port) else 1)

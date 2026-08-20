@@ -111,6 +111,14 @@ int Log::connectedClients() {
     return numClients_;
 }
 
+void Log::closeAll() {
+    for (int i = 0; i < numClients_; i++) {
+        clients_[i].stop();
+    }
+    numClients_ = 0;
+    Serial.println("\r\n[Log] Closing telnet — reboot in progress");
+}
+
 void Log::toAll(const char* data, size_t len) {
     if (!telnetReady_) {
         for (size_t i = 0; i < len; i++) {

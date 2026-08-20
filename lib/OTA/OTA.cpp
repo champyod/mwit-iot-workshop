@@ -56,6 +56,7 @@ void OTA::handle() {
 
     if (state_ == DONE) {
         Logger.println("[OTA] Success — rebooting...\n");
+        Logger.closeAll();  // FIN to monitors; nc exits cleanly instead of hanging
         delay(500);
         ESP.restart();
         return;

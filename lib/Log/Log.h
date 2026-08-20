@@ -23,6 +23,10 @@ public:
 
     int connectedClients();
 
+    // Stop all telnet clients (sends FIN). Call before reboot so monitors
+    // see a clean EOF instead of a hung connection.
+    void closeAll();
+
 private:
     WiFiServer* server_;
     WiFiClient clients_[LOG_TELNET_MAX];

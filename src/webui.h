@@ -24,20 +24,30 @@ const char WEBUI_PAGE[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   dl { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; margin: 0; }
   dt { color: #8b96ab; font-size: 13px; align-self: center; }
   dd { margin: 0; font-family: ui-monospace, monospace; font-size: 14px; text-align: right; }
-  .ok { color: #5dd39e; } .bad { color: #ef6a6a; }
+  .ok { color: #5dd39e; } .bad { color: #ef6a6a; } .warn { color: #e8b64c; }
+  button {
+    margin-top: 18px; width: 100%; padding: 10px 0; border-radius: 8px;
+    border: 0; background: #2a3550; color: #e8ecf4; font-size: 14px;
+    cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #34426a; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>MiniProject Alarm</h1>
-  <div class="sub">system status &mdash; refreshes every 2 s</div>
+  <div class="sub">system status &mdash; refreshes every 1 s</div>
   <dl>
     <dt>WiFi</dt><dd id="wifi">&mdash;</dd>
     <dt>IP</dt><dd id="ip">&mdash;</dd>
     <dt>RSSI</dt><dd id="rssi">&mdash;</dd>
     <dt>Free heap</dt><dd id="heap">&mdash;</dd>
     <dt>Uptime</dt><dd id="uptime">&mdash;</dd>
+    <dt>Engine</dt><dd id="engine">&mdash;</dd>
+    <dt>Tier</dt><dd id="tier">&mdash;</dd>
+    <dt>Nearest</dt><dd id="nearest">&mdash;</dd>
   </dl>
+  <button id="toggleBtn" onclick="toggleEngine()">PAUSE</button>
 </div>
 <script>
 function fmtUptime(ms) {
@@ -58,10 +68,26 @@ async function poll() {
     document.getElementById('heap').textContent =
       (j.free_heap / 1024).toFixed(0) + ' KB';
     document.getElementById('uptime').textContent = fmtUptime(j.uptime_ms);
+    const engEl = document.getElementById('engine');
+    engEl.textContent = j.running ? 'RUNNING' : 'PAUSED';
+    engEl.className = j.running ? 'ok' : '';
+    const tierEl = document.getElementById('tier');
+    tierEl.textContent = j.tier;
+    tierEl.className =
+      j.tier === 'DANGER' ? 'bad' : (j.tier === 'WARN' ? 'warn' : 'ok');
+    document.getElementById('nearest').textContent =
+      j.nearest_cm >= 0 ? j.nearest_cm.toFixed(1) + ' cm' : '\u2014';
+    document.getElementById('toggleBtn').textContent = j.running ? 'PAUSE' : 'RUN';
   } catch (e) { /* device busy or link down; next tick retries */ }
 }
+async function toggleEngine() {
+  try {
+    await fetch('/api/toggle', { method: 'POST' });
+    poll();
+  } catch (e) { /* retried on next poll tick */ }
+}
 poll();
-setInterval(poll, 2000);
+setInterval(poll, 1000);
 </script>
 </body>
 </html>)rawliteral";

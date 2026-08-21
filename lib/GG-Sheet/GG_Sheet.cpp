@@ -49,6 +49,14 @@ String GGSheet::buildQuery(const char* run,
          + "&heatIndex="   + heatIndex;
 }
 
+String GGSheet::buildZoneQuery(const char* run,
+                               float nearestCm,
+                               const char* tier) {
+    return String("?run=")       + run
+         + "&nearest_cm=" + String(nearestCm, 1)
+         + "&tier="       + tier;
+}
+
 // Parse "Location: https://host/path?..." → host + path+query
 static bool parseLocation(const String& line,
                           String& outHost, String& outPath) {
@@ -68,13 +76,7 @@ static bool parseLocation(const String& line,
     return true;
 }
 
-bool GGSheet::send(const char* run,
-                   float temperature,
-                   float humidity,
-                   float heatIndex) {
-    String host = host_;
-    String path = String(path_) + buildQuery(run, temperature, humidity, heatIndex);
-
+bool GGSheet::fetchWithRedirects(String& host, String& path) {
     for (int attempt = 0; attempt < 3; attempt++) {
         WiFiClientSecure client;
         client.setCACert(ggCaCert);
@@ -144,4 +146,21 @@ bool GGSheet::send(const char* run,
 
     Serial.println("[GGSheet] Too many redirects or retries exhausted");
     return false;
+}
+
+bool GGSheet::send(const char* run,
+                   float temperature,
+                   float humidity,
+                   float heatIndex) {
+    String host = host_;
+    String path = String(path_) + buildQuery(run, temperature, humidity, heatIndex);
+    return fetchWithRedirects(host, path);
+}
+
+bool GGSheet::sendZone(const char* run,
+                       float nearestCm,
+                       const char* tier) {
+    String host = host_;
+    String path = String(path_) + buildZoneQuery(run, nearestCm, tier);
+    return fetchWithRedirects(host, path);
 }

@@ -244,3 +244,35 @@ bool DiscordWebhook::sendRecovery(float temperature, float humidity, float heatI
     String payload = buildRecoveryPayload(temperature, humidity, heatIndex);
     return sendPayload(payload);
 }
+
+String DiscordWebhook::buildZoneAlertPayload(float nearestCm) {
+    const String ts = buildTimestamp();
+    String json;
+    json.reserve(400);
+
+    json += "{\"embeds\":[{\"color\":";
+    json += 15158332;  // red
+    json += ",\"title\":\"Danger Zone Alert\"";
+    json += ",\"description\":\"Worker entered machinery danger zone.\"";
+    json += ",\"timestamp\":\"";
+    json += ts;
+    json += "\",\"fields\":[";
+
+    json += "{\"name\":\"Nearest Distance\",\"value\":\"";
+    json += String(nearestCm, 1);
+    json += " cm\",\"inline\":true},";
+
+    json += "{\"name\":\"Threshold\",\"value\":\"<= 50 cm\",\"inline\":true},";
+
+    json += "{\"name\":\"Status\",\"value\":\"DANGER\",\"inline\":true}";
+
+    json += "],\"footer\":{\"text\":\"miniproject\"}";
+    json += "}]}";
+
+    return json;
+}
+
+bool DiscordWebhook::sendZoneAlert(float nearestCm) {
+    String payload = buildZoneAlertPayload(nearestCm);
+    return sendPayload(payload);
+}

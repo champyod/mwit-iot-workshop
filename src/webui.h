@@ -76,13 +76,13 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <div class="card">
 <h2>System</h2>
 <div class="sysTop">
-<div><div class="bigNum"><span id="nearest">—</span><span class="unit">cm nearest</span></div></div>
-<span id="tierBadge" class="tierBadge ok">SAFE</span>
+<div id="statWrap"><div class="bigNum"><span id="nearest">—</span><span class="unit">cm nearest</span></div></div>
+<span id="tierBadge" class="tierBadge ok" style="display:none">SAFE</span>
 <button id="toggleBtn" class="btn btn-start" onclick="toggleEngine()" disabled>START</button>
 </div>
 <div class="radar"><svg id="radarSvg" viewBox="0 0 320 118" aria-hidden="true"></svg><div id="noSig" class="noSig" style="display:none">NO SIGNAL</div><div id="syncing" class="noSig" style="display:none;z-index:2;background:rgba(14,19,30,.55)"><span class="spin"></span>&nbsp;SYNCING</div></div>
 <div class="actions"><button class="btn btn-reset" id="resetBtn" onclick="doReset()" disabled>Reset defaults</button><span class="muted">Link delay <b id="latency" class="mono">—</b></span></div>
-<p class="muted" style="margin:10px 0 0">Short press physical button = start/stop. Hold 3 s = reset thresholds &amp; calibration.</p>
+<p class="muted" style="margin:10px 0 0">Short press physical button = start/stop. Hold 3 s = reset thresholds &amp; calibration.<br>Button test — state <b id="btnState" class="mono">—</b> · pin raw <b id="btnRaw" class="mono">—</b></p>
 </div>
 <div class="card">
 <h2>Range config <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">live, resets on reboot</span></h2>
@@ -94,7 +94,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <h2 style="margin-top:16px">Timing</h2>
 <div class="inputs">
 <div class="field"><label>Sample every ms (10+)</label><input id="intervalIn" type="number" step="10" min="10" max="60000" placeholder="—"></div>
-<div class="field"><label>Echo window ms (≥45 for RCW-0001)</label><input id="timeoutIn" type="number" step="5" min="10" max="200" placeholder="—"></div>
+<div class="field"><label>Echo window ms (≥45)</label><input id="timeoutIn" type="number" step="5" min="10" max="200" placeholder="—"></div>
 </div>
 <div class="actions"><button class="btn btn-primary" id="timeBtn" onclick="applyTiming()" disabled>Apply timing</button><span id="timeMsg" class="muted"></span></div>
 <p class="muted" style="margin:8px 0 0">Interval = how often a detection cycle repeats. Echo window = max wait for the return pulse; below ~45 ms this module reports FAILED.</p>
@@ -104,13 +104,12 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <h2>Ultrasonic sensors</h2>
 <table><thead><tr><th>#</th><th>Raw</th><th>Corrected</th><th>Offset cm</th><th>Scale ×</th><th>Delay ms</th><th>State</th><th>Pwr</th></tr></thead><tbody id="sensorBody"></tbody></table>
 <div class="actions"><button class="btn btn-primary" id="calBtn" onclick="applyCalibration()" disabled>Apply calibration</button><span id="calMsg" class="muted"></span></div>
-<p class="muted" id="calHint" style="margin:8px 0 0">Offset −50…+50 cm, scale 0.5…2.0. Corrected = (raw + offset) × scale. Grayed row = sensor off.</p>
 </div>
 <details class="debug"><summary>Debug details <span class="muted">WiFi · heap · uptime</span></summary><div class="debug-body"><div class="kvs"><dt>WiFi</dt><dd id="wifi">—</dd><dt>IP</dt><dd id="ip">—</dd><dt>RSSI</dt><dd id="rssi">—</dd><dt>Free heap</dt><dd id="heap">—</dd><dt>Uptime</dt><dd id="uptime">—</dd></div></div></details>
 </div>
 <script>
 const AXIS_Y=100,X0=16,XW=288,BEAM_H=66,LOGMAX=Math.log(450);
-const RINGS=[25,50,100,200,450];
+const RINGS=[5,10,25,50,100,200,450];
 const ringX=d=>X0+Math.log(d)/LOGMAX*XW;
 function radarColor(t){return t==='DANGER'?'#ef6a6a':t==='WARN'?'#e8b64c':'#5dd39e'}
 function buildRadar(){
@@ -207,7 +206,9 @@ function renderSensors(j){
 }
 function render(j,latMs){
  document.getElementById('nearest').textContent=j.nearest_cm>=0?j.nearest_cm.toFixed(1):'—';
- const tb=document.getElementById('tierBadge');tb.textContent=j.tier;tb.className='tierBadge '+tierClass(j.tier);
+ const live=!!j.running;
+ document.getElementById('statWrap').style.display=live?'':'none';
+ const tb=document.getElementById('tierBadge');tb.style.display=live?'':'none';tb.textContent=j.tier;tb.className='tierBadge '+tierClass(j.tier);
  const btn=document.getElementById('toggleBtn');
  const lbl=j.running?'STOP':'START';
  if(btn.textContent!==lbl){btn.textContent=lbl;btn.className='btn '+(j.running?'btn-stop':'btn-start')}
@@ -224,6 +225,9 @@ function render(j,latMs){
  setInputClean('warnIn',j.warn_cm);
  setInputClean('intervalIn',j.sample_interval_ms);
  setInputClean('timeoutIn',j.echo_timeout_ms);
+ const bSt=document.getElementById('btnState');
+ if(j.button_pressed!==undefined){bSt.textContent=j.button_pressed?'PRESSED':'released';bSt.style.color=j.button_pressed?'var(--ok)':''}
+ if(j.button_raw!==undefined)document.getElementById('btnRaw').textContent=j.button_raw;
  renderSensors(j);
  if(!firstData){firstData=true;ACTION_BTN_IDS.forEach(id=>{document.getElementById(id).disabled=false})}
 }
@@ -232,14 +236,33 @@ async function postJson(url,body){
  if(!r.ok)throw new Error('HTTP '+r.status);
  return r.json();
 }
-async function runAction(btn,msgEl,send,clearIds=[]){
+function applyConfig(j){
+ if(j.danger_cm!==undefined)setInputClean('dangerIn',j.danger_cm);
+ if(j.warn_cm!==undefined)setInputClean('warnIn',j.warn_cm);
+ if(j.sample_interval_ms!==undefined)setInputClean('intervalIn',j.sample_interval_ms);
+ if(j.echo_timeout_ms!==undefined)setInputClean('timeoutIn',j.echo_timeout_ms);
+ if(Array.isArray(j.sensors)){
+  lastSensors=j.sensors.map((s,i)=>Object.assign({},lastSensors[i]||{},s));
+  ensureRows(lastSensors.length);
+  lastSensors.forEach((s,i)=>{
+   const r=rowRefs[i];
+   setInputClean('off'+i,s.offset);setInputClean('scale'+i,s.scale);setInputClean('dly'+i,s.delay_ms||10);
+   const on=s.enabled!==false;
+   r.tr.classList.toggle('rowOff',!on);
+   const lbl=on?'ON':'OFF';
+   if(r.pwrBtn.textContent!==lbl)r.pwrBtn.textContent=lbl;
+   r.pwrBtn.setAttribute('style',`padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${on?'rgba(93,211,158,.4)':'var(--line)'};background:${on?'rgba(93,211,158,.12)':'transparent'};color:${on?'var(--ok)':'var(--muted)'}`);
+  });
+ }
+}
+async function runAction(btn,msgEl,send,clearIds=[],mode='full'){
  const orig=btn.textContent,origCls=btn.className;
  showSync();
  btn.disabled=true;btn.textContent='';btn.appendChild(Object.assign(document.createElement('span'),{className:'spin'}));
  let ok=false;
  try{
   const j=await send();
-  render(j);
+  if(mode==='config')applyConfig(j);else render(j);
   clearDirty(clearIds);
   ok=true;
   if(msgEl){msgEl.textContent='Applied';setTimeout(()=>msgEl.textContent='',1500)}
@@ -254,12 +277,12 @@ async function toggleEngine(){runAction(document.getElementById('toggleBtn'),nul
 async function applyThresholds(){
  const d=numVal('dangerIn'),w=numVal('warnIn');
  if(isNaN(d)||isNaN(w)){document.getElementById('thMsg').textContent='No data yet';return}
- runAction(document.getElementById('thBtn'),document.getElementById('thMsg'),()=>postJson('/api/config',{danger_cm:d,warn_cm:w}),['dangerIn','warnIn']);
+ runAction(document.getElementById('thBtn'),document.getElementById('thMsg'),()=>postJson('/api/config',{danger_cm:d,warn_cm:w}),['dangerIn','warnIn'],'config');
 }
 async function applyTiming(){
  const iv=numVal('intervalIn'),to=numVal('timeoutIn');
  if(isNaN(iv)||isNaN(to)){document.getElementById('timeMsg').textContent='No data yet';return}
- runAction(document.getElementById('timeBtn'),document.getElementById('timeMsg'),()=>postJson('/api/config',{sample_interval_ms:iv,echo_timeout_ms:to}),['intervalIn','timeoutIn']);
+ runAction(document.getElementById('timeBtn'),document.getElementById('timeMsg'),()=>postJson('/api/config',{sample_interval_ms:iv,echo_timeout_ms:to}),['intervalIn','timeoutIn'],'config');
 }
 function buildSensorPayload(){
  return lastSensors.map((s,i)=>{
@@ -270,16 +293,16 @@ function buildSensorPayload(){
 function sensorInputIds(){return lastSensors.flatMap((_,i)=>['off'+i,'scale'+i,'dly'+i])}
 async function applyCalibration(){
  if(!lastSensors.length)return;
- runAction(document.getElementById('calBtn'),document.getElementById('calMsg'),()=>postJson('/api/config',{sensors:buildSensorPayload()}),sensorInputIds());
+ runAction(document.getElementById('calBtn'),document.getElementById('calMsg'),()=>postJson('/api/config',{sensors:buildSensorPayload()}),sensorInputIds(),'config');
 }
 async function doReset(){
- runAction(document.getElementById('resetBtn'),null,()=>postJson('/api/reset'),['dangerIn','warnIn','intervalIn','timeoutIn',...sensorInputIds()]);
+ runAction(document.getElementById('resetBtn'),null,()=>postJson('/api/reset'),['dangerIn','warnIn','intervalIn','timeoutIn',...sensorInputIds()],'config');
 }
 async function toggleSensor(i,btnEl){
  if(!lastSensors[i])return;
  const payload=buildSensorPayload();
  payload[i].enabled=!payload[i].enabled;
- await runAction(btnEl,null,()=>postJson('/api/config',{sensors:payload}));
+  await runAction(btnEl,null,()=>postJson('/api/config',{sensors:payload}),[],'config');
 }
 async function fetchOnce(){
  try{

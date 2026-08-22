@@ -11,6 +11,9 @@ public:
     bool wasPressed();
     bool wasLongPressed(unsigned long holdMs = 3000);
 
+    // Raw pin level, no debounce: true while the pin reads LOW (pressed).
+    bool isDownRaw() const { return digitalRead(pin_) == LOW; }
+
 private:
     uint8_t pin_;
 

@@ -80,8 +80,7 @@ static const char* echoStatusName(EchoStatus status) {
     return "unknown";
 }
 
-// Power-on wiring check: each indicator fires once, independent of
-// sensors/network. A dark LED here means pin/wiring fault, not logic.
+// Boot-time wiring check: a dark LED here means pin/wiring fault, not zone logic.
 static void selfTestOutput(LED& out, const char* name) {
     Logger.printf("[SELFTEST] %s ON\n", name);
     out.on();
@@ -176,6 +175,8 @@ static String buildStatusJson() {
     json += ",\"warn_cm\":" + String(engine.warnThresh(), 1);
     json += ",\"sample_interval_ms\":" + String(engine.sampleIntervalMs());
     json += ",\"echo_timeout_ms\":" + String(us1.echoTimeoutMs());
+    json += ",\"button_pressed\":" + String(engineButton.isDownRaw() ? "true" : "false");
+    json += ",\"button_raw\":" + String(digitalRead(PIN_BUTTON));
     json += ",\"sensors\":[";
     for (uint8_t i = 0; i < engine.sensorCount(); ++i) {
         if (i) json += ",";
@@ -186,6 +187,25 @@ static String buildStatusJson() {
         json += ",\"delay_ms\":" + String(engine.sensorDelayMs(i));
         json += ",\"enabled\":" + String(engine.isEnabled(i) ? "true" : "false");
         json += ",\"status\":\"" + String(echoStatusName(engine.sensorStatus(i))) + "\"}";
+    }
+    json += "]";
+    json += "}";
+    return json;
+}
+
+static String buildConfigJson() {
+    String json = "{";
+    json += "\"danger_cm\":" + String(engine.dangerThresh(), 1);
+    json += ",\"warn_cm\":" + String(engine.warnThresh(), 1);
+    json += ",\"sample_interval_ms\":" + String(engine.sampleIntervalMs());
+    json += ",\"echo_timeout_ms\":" + String(us1.echoTimeoutMs());
+    json += ",\"sensors\":[";
+    for (uint8_t i = 0; i < engine.sensorCount(); ++i) {
+        if (i) json += ",";
+        json += "{\"offset\":" + String(engine.calibrationOffset(i), 1);
+        json += ",\"scale\":" + String(engine.calibrationScale(i), 2);
+        json += ",\"delay_ms\":" + String(engine.sensorDelayMs(i));
+        json += ",\"enabled\":" + String(engine.isEnabled(i) ? "true" : "false") + "}";
     }
     json += "]";
     json += "}";
@@ -349,7 +369,7 @@ static void handleConfig(AsyncWebServerRequest *req) {
                   engine.dangerThresh(), engine.warnThresh(),
                   engine.sampleIntervalMs(), us1.echoTimeoutMs());
     pushEvents();
-    req->send(200, "application/json", buildStatusJson());
+    req->send(200, "application/json", buildConfigJson());
 }
 
 static void handleReset(AsyncWebServerRequest *req) {
@@ -358,7 +378,7 @@ static void handleReset(AsyncWebServerRequest *req) {
     us2.setTimeoutUs(DEFAULT_ECHO_TIMEOUT_MS * 1000UL);
     Logger.println("[ENGINE] RESET defaults");
     pushEvents();
-    req->send(200, "application/json", buildStatusJson());
+    req->send(200, "application/json", buildConfigJson());
 }
 
 static void handleNotFound(AsyncWebServerRequest *req) {
@@ -431,6 +451,11 @@ void setup() {
     engineButton.begin();
     engine.begin(&us1, &us2, &ledSafe, &ledWarn, &ledDanger, &buzzer);
 
+    selfTestOutput(ledSafe,   "SAFE   LED GPIO26");
+    selfTestOutput(ledWarn,   "WARN   LED GPIO27");
+    selfTestOutput(ledDanger, "DANGER LED GPIO25");
+    selfTestOutput(buzzer,    "BUZZER     GPIO14");
+
     wifi.begin();
     ota.begin();
 
@@ -438,8 +463,7 @@ void setup() {
     server.on("/api/status", HTTP_GET, handleStatus);
     server.addHandler(&events);
     server.on("/api/toggle", HTTP_POST, handleToggle);
-    server.on("/api/config", HTTP_POST, handleConfig);
-    server.onRequestBody(handleConfigBody);
+    server.on("/api/config", HTTP_POST, handleConfig, NULL, handleConfigBody);
     server.on("/api/reset", HTTP_POST, handleReset);
     server.onNotFound(handleNotFound);
     server.begin();

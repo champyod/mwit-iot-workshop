@@ -30,9 +30,15 @@ header{margin-bottom:16px}
 .kvs{display:grid;grid-template-columns:1fr auto;gap:10px 16px}
 .kvs dt{color:var(--muted);font-size:13px}
 .kvs dd{margin:0;font-family:ui-monospace,monospace;font-size:13px;text-align:right}
-.sensors table{width:100%;border-collapse:collapse}
+.sensors table{width:100%;border-collapse:collapse;table-layout:fixed}
+.sensors th:nth-child(1){width:34px}
+.sensors th:nth-child(2){width:92px}
+.sensors th:nth-child(3){width:100px}
+.sensors th:nth-child(6){width:78px}
+.sensors th:nth-child(7){width:88px}
+.sensors th:nth-child(8){width:58px}
 .sensors th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
-.sensors td{padding:10px 6px;border-bottom:1px solid rgba(42,54,82,.6);font-family:ui-monospace,monospace;font-size:13px}
+.sensors td{padding:10px 6px;border-bottom:1px solid rgba(42,54,82,.6);font-family:ui-monospace,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sensors td:first-child{font-family:system-ui,sans-serif;font-weight:600}
 tr.rowOff{filter:grayscale(1);opacity:.5}
 .badge{padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
@@ -44,7 +50,11 @@ tr.rowOff{filter:grayscale(1);opacity:.5}
 .field label{display:block;color:var(--muted);font-size:11px;letter-spacing:.3px;text-transform:uppercase;margin-bottom:6px}
 .field input{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font-size:14px;outline:none}
 .field input:focus{border-color:#3a4a72;box-shadow:0 0 0 3px rgba(58,74,114,.3)}
-.actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.info{position:relative;display:inline-block;margin-left:6px;vertical-align:1px}
+.info .ico{display:inline-flex;width:15px;height:15px;border-radius:50%;background:var(--card2);border:1px solid var(--line);color:var(--muted);font-size:10px;font-weight:700;align-items:center;justify-content:center;cursor:pointer;user-select:none}
+.info .tip{position:absolute;left:0;top:calc(100% + 8px);width:min(260px,72vw);background:#0b101a;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.5;text-transform:none;letter-spacing:0;opacity:0;visibility:hidden;transition:opacity .15s;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.info:hover .tip,.info.open .tip{opacity:1;visibility:visible}
 .btn{appearance:none;border:0;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer}
 .btn-primary{background:#2f3f62;color:var(--text)}
 .btn-primary:hover{background:#34466e}
@@ -67,7 +77,15 @@ details.debug summary{list-style:none;cursor:pointer;padding:14px var(--pad);col
 details.debug summary::-webkit-details-marker{display:none}
 details.debug[open] summary{border-bottom:1px solid var(--line)}
 .debug-body{padding:14px var(--pad)}
-@media(max-width:640px){.sensors table thead{display:none}.sensors table tr{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px 0}.sensors table td{border:0;padding:4px 6px}.sensors table td::before{content:attr(data-l);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;display:block}}
+@media(max-width:640px){
+.sensors table thead{display:none}
+.sensors table,.sensors table tbody{display:block}
+.sensors table tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.sensors table td{display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;padding:2px 0;white-space:normal}
+.sensors table td::before{content:attr(data-l);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0}
+.sensors table td:nth-child(1){grid-column:1/-1;font-weight:700}
+.sensors input[type=number]{font-size:16px;width:100%!important;min-width:0}
+}
 </style>
 </head>
 <body>
@@ -83,7 +101,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 </div>
 <div class="radar"><svg id="radarSvg" viewBox="0 0 320 118" aria-hidden="true"></svg><div id="noSig" class="noSig" style="display:none">NO SIGNAL</div><div id="syncing" class="noSig" style="display:none;z-index:2;background:rgba(14,19,30,.55)"><span class="spin"></span>&nbsp;SYNCING</div></div>
 <div class="actions"><button class="btn btn-reset" id="resetBtn" onclick="doReset()" disabled>Reset defaults</button><span class="muted">Link delay <b id="latency" class="mono">—</b></span></div>
-<p class="muted" style="margin:10px 0 0">Short press physical button = start/stop. Hold 3 s = reset thresholds &amp; calibration.<br>Button test — state <b id="btnState" class="mono">—</b> · pin raw <b id="btnRaw" class="mono">—</b></p>
+<p class="muted" style="margin:10px 0 0">Short press physical button = start/stop. Hold 3 s = reset thresholds &amp; calibration.</p>
 </div>
 <div class="card">
 <h2>Range config <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">live, resets on reboot</span></h2>
@@ -92,13 +110,12 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <div class="field"><label>Warn ≤ cm</label><input id="warnIn" type="number" step="1" min="5" max="450" placeholder="—"></div>
 </div>
 <div class="actions"><button class="btn btn-primary" id="thBtn" onclick="applyThresholds()" disabled>Apply thresholds</button><span id="thMsg" class="muted"></span></div>
-<h2 style="margin-top:16px">Timing</h2>
+<h2 style="margin-top:16px">Timing <span class="info"><span class="ico">i</span><span class="tip">Interval = how often a detection cycle repeats. Echo window = max wait for the return pulse; below ~45 ms this module reports FAILED.</span></span></h2>
 <div class="inputs">
 <div class="field"><label>Sample every ms (10+)</label><input id="intervalIn" type="number" step="10" min="10" max="60000" placeholder="—"></div>
 <div class="field"><label>Echo window ms</label><input id="timeoutIn" type="number" step="5" min="10" max="200" placeholder="—"></div>
 </div>
 <div class="actions"><button class="btn btn-primary" id="timeBtn" onclick="applyTiming()" disabled>Apply timing</button><span id="timeMsg" class="muted"></span></div>
-<p class="muted" style="margin:8px 0 0">Interval = how often a detection cycle repeats. Echo window = max wait for the return pulse; below ~45 ms this module reports FAILED.</p>
 </div>
 </div>
 <div class="card sensors" style="margin-top:14px">
@@ -175,10 +192,10 @@ function ensureRows(count){
   const i=rowRefs.length,tr=document.createElement('tr');
    const mk=(label,inner)=>{const td=document.createElement('td');td.dataset.l=label;if(inner!==undefined){if(inner instanceof Node)td.appendChild(inner);else td.innerHTML=inner}return td};
   const rawTd=mk('Raw'),cmTd=mk('Corrected'),stateTd=mk('State');
-  const numIn=(id,label,step,min,max,w)=>{const inp=document.createElement('input');inp.id=id;inp.type='number';inp.step=step;inp.min=min;inp.max=max;inp.placeholder='—';inp.style.cssText=`width:${w}px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 8px`;return mk(label,inp)};
-  const off=numIn('off'+i,'Offset','0.1','-50','50',90);
-  const scale=numIn('scale'+i,'Scale','0.05','0.5','2',80);
-  const dly=numIn('dly'+i,'Delay ms','10','10','5000',70);
+   const numIn=(id,label,step,min,max)=>{const inp=document.createElement('input');inp.id=id;inp.type='number';inp.step=step;inp.min=min;inp.max=max;inp.placeholder='—';inp.style.cssText=`width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 8px`;return mk(label,inp)};
+   const off=numIn('off'+i,'Offset','0.1','-50','50');
+   const scale=numIn('scale'+i,'Scale','0.05','0.5','2');
+   const dly=numIn('dly'+i,'Delay ms','10','10','5000');
   const pwrBtn=document.createElement('button');
   pwrBtn.textContent='ON';
   pwrBtn.addEventListener('click',()=>toggleSensor(i,pwrBtn));
@@ -206,6 +223,7 @@ function renderSensors(j){
  });
 }
 function render(j,latMs){
+ const live=!!j.running;
  document.getElementById('nearest').textContent=live&&j.nearest_cm>=0?j.nearest_cm.toFixed(1):'—';
  const tb=document.getElementById('tierBadge');
  tb.textContent=live?j.tier:'—';
@@ -226,9 +244,6 @@ function render(j,latMs){
  setInputClean('warnIn',j.warn_cm);
  setInputClean('intervalIn',j.sample_interval_ms);
  setInputClean('timeoutIn',j.echo_timeout_ms);
- const bSt=document.getElementById('btnState');
- if(j.button_pressed!==undefined){bSt.textContent=j.button_pressed?'PRESSED':'released';bSt.style.color=j.button_pressed?'var(--ok)':''}
- if(j.button_raw!==undefined)document.getElementById('btnRaw').textContent=j.button_raw;
  renderSensors(j);
  if(!firstData){firstData=true;ACTION_BTN_IDS.forEach(id=>{document.getElementById(id).disabled=false})}
 }
@@ -334,10 +349,12 @@ function startLive(){
  return true;
 }
 (async()=>{
- await fetchOnce();
- startWatchdog();
- if(!startLive())setInterval(fetchOnce,1000);
+  await fetchOnce();
+  startWatchdog();
+  if(!startLive())setInterval(fetchOnce,1000);
 })();
+document.querySelectorAll('.info').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();el.classList.toggle('open')}));
+document.addEventListener('click',()=>document.querySelectorAll('.info.open').forEach(el=>el.classList.remove('open')));
 </script>
 </body>
 </html>)rawliteral";

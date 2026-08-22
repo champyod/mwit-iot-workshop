@@ -179,8 +179,6 @@ static String buildStatusJson() {
     json += ",\"warn_cm\":" + String(engine.warnThresh(), 1);
     json += ",\"sample_interval_ms\":" + String(engine.sampleIntervalMs());
     json += ",\"echo_timeout_ms\":" + String(us1.echoTimeoutMs());
-    json += ",\"button_pressed\":" + String(engineButton.isDownRaw() ? "true" : "false");
-    json += ",\"button_raw\":" + String(digitalRead(PIN_BUTTON));
     json += ",\"sensors\":[";
     for (uint8_t i = 0; i < engine.sensorCount(); ++i) {
         if (i) json += ",";

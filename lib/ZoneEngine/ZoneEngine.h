@@ -32,9 +32,22 @@ public:
     float calibrationOffset(uint8_t idx) const;
     float calibrationScale(uint8_t idx) const;
 
+    void setEnabled(uint8_t idx, bool enabled);
+    bool isEnabled(uint8_t idx) const;
+
+    // Timing — live-only. Interval = ms between detection cycles (floor 10).
+    // Delay = pre-ping wait before that sensor fires within the cycle.
+    void          setSampleIntervalMs(unsigned long ms);
+    unsigned long sampleIntervalMs() const { return sampleIntervalMs_; }
+    void          setSensorDelayMs(uint8_t idx, unsigned long ms);
+    unsigned long sensorDelayMs(uint8_t idx) const;
+
     float   sensorCm(uint8_t idx) const;
     float   sensorRawCm(uint8_t idx) const;
     uint8_t sensorCount() const { return 2; }
+
+    EchoStatus  sensorStatus(uint8_t idx) const;
+    uint16_t    sensorFailStreak(uint8_t idx) const;
 
     void resetDefaults();
 
@@ -56,10 +69,17 @@ private:
 
     unsigned long lastSampleMs_ = 0;
 
+    unsigned long sampleIntervalMs_   = 100;
+    unsigned long sensorDelayMs_[2]   = {10, 10};
+
     float dangerThresh_ = 50.0f;
     float warnThresh_   = 100.0f;
+    bool  enabled_[2]   = {true, true};
     float offsets_[2]   = {0.0f, 0.0f};
     float scales_[2]    = {1.0f, 1.0f};
     float raw_[2]       = {-1.0f, -1.0f};
     float corrected_[2] = {-1.0f, -1.0f};
+
+    EchoStatus status_[2]     = {EchoStatus::NO_ECHO, EchoStatus::NO_ECHO};
+    uint16_t   failStreak_[2] = {0, 0};
 };

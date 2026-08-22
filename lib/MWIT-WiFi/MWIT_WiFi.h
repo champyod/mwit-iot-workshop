@@ -14,6 +14,7 @@ public:
     bool connected();
     IPAddress localIP();
     int8_t rssi();
+    const char* ssid() const { return ssid_; }
 
 private:
     const char* ssid_;

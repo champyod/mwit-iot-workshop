@@ -129,7 +129,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <table><thead><tr><th>#</th><th>Raw</th><th>Corrected</th><th>Offset cm</th><th>Scale ×</th><th>Delay ms</th><th>State</th><th>Pwr</th></tr></thead><tbody id="sensorBody"></tbody></table>
 <div class="actions"><button class="btn btn-primary" id="calBtn" onclick="applyCalibration()" disabled>Apply calibration</button><span id="calMsg" class="muted"></span></div>
 </div>
-<details class="debug"><summary>Debug details <span class="muted">WiFi · heap · uptime</span></summary><div class="debug-body"><div class="kvs"><dt>WiFi</dt><dd id="wifi">—</dd><dt>IP</dt><dd id="ip">—</dd><dt>RSSI</dt><dd id="rssi">—</dd><dt>Free heap</dt><dd id="heap">—</dd><dt>Uptime</dt><dd id="uptime">—</dd></div></div></details>
+<details class="debug"><summary>Debug details <span class="muted">WiFi · heap · uptime</span> <span class="info"><span class="ico">i</span><span class="tip">RSSI = WiFi signal strength, closer to 0 is better (−50 great, −80 drops). Free heap = spare RAM for variables; if it keeps shrinking something leaks. Uptime = time since last boot.</span></span></summary><div class="debug-body"><div class="kvs"><dt>WiFi</dt><dd id="wifi">—</dd><dt>Network</dt><dd id="ssid">—</dd><dt>IP</dt><dd id="ip">—</dd><dt>RSSI</dt><dd id="rssi">—</dd><dt>Free heap</dt><dd id="heap">—</dd><dt>Uptime</dt><dd id="uptime">—</dd></div></div></details>
 </div>
 <script>
 const AXIS_Y=100,X0=16,XW=288,BEAM_H=66,LOGMAX=Math.log(450);
@@ -258,6 +258,7 @@ function render(j,latMs){
  if(j.sample_interval_ms)curSample=j.sample_interval_ms;
  updateRadar(j.nearest_cm,j.tier);
  const wifiEl=document.getElementById('wifi');wifiEl.textContent=j.wifi_connected?'connected':'offline';wifiEl.className=j.wifi_connected?'ok':'bad';
+ document.getElementById('ssid').textContent=j.ssid||'—';
  document.getElementById('ip').textContent=j.ip;
  document.getElementById('rssi').textContent=j.rssi_dbm+' dBm';
  document.getElementById('heap').textContent=(j.free_heap/1024).toFixed(0)+' KB';

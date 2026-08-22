@@ -170,6 +170,7 @@ static String buildStatusJson() {
     String json = "{";
     json += "\"uptime_ms\":" + String(millis());
     json += ",\"wifi_connected\":" + String(wifi.connected() ? "true" : "false");
+    json += ",\"ssid\":\"" + String(wifi.ssid()) + "\"";
     json += ",\"ip\":\"" + wifi.localIP().toString() + "\"";
     json += ",\"rssi_dbm\":" + String(wifi.rssi());
     json += ",\"free_heap\":" + String(ESP.getFreeHeap());

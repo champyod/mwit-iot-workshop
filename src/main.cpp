@@ -171,6 +171,7 @@ static String buildStatusJson() {
     json += "\"uptime_ms\":" + String(millis());
     json += ",\"wifi_connected\":" + String(wifi.connected() ? "true" : "false");
     json += ",\"ssid\":\"" + String(wifi.ssid()) + "\"";
+    json += ",\"button\":\"" + String(engineButton.stateName()) + "\"";
     json += ",\"ip\":\"" + wifi.localIP().toString() + "\"";
     json += ",\"rssi_dbm\":" + String(wifi.rssi());
     json += ",\"free_heap\":" + String(ESP.getFreeHeap());
@@ -445,8 +446,9 @@ static void reportSensorHealth() {
 static void buttonTask(void *arg) {
     (void)arg;
     for (;;) {
-        if (engineButton.wasLongPressed(3000)) btnLongReq = true;
-        if (engineButton.wasPressed()) btnShortReq = true;
+        engineButton.poll(3000);
+        if (engineButton.takeLongPress()) btnLongReq = true;
+        if (engineButton.takeShortPress()) btnShortReq = true;
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 }

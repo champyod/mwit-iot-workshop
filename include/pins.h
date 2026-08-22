@@ -11,7 +11,7 @@ constexpr uint8_t PIN_US2_ECHO = 19;
 
 // ---- Risk indicator LEDs ----
 constexpr uint8_t PIN_LED_SAFE   = 26;  // blue LED = SAFE tier
-constexpr uint8_t PIN_LED_WARN   = 27;  // yellow LED = WARN tier
+constexpr uint8_t PIN_LED_WARN   = 33;  // yellow LED = WARN tier (GPIO27 output dead, moved)
 constexpr uint8_t PIN_LED_DANGER = 25;  // red LED module = DANGER tier
 
 // ---- Active buzzer ----

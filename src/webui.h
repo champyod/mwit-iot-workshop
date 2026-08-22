@@ -10,8 +10,12 @@ const char WEBUI_PAGE[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 :root{--bg:#0e131e;--card:#171e2e;--card2:#1e2942;--line:#2a3652;--text:#e8ecf4;--muted:#8b96ab;--ok:#5dd39e;--warn:#e8b64c;--bad:#ef6a6a;--radius:16px;--pad:20px}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 .page{max-width:960px;margin:0 auto;padding:20px 16px 32px}
-header{margin-bottom:16px}
-.brand h1{margin:0;font-size:20px;letter-spacing:.2px}
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;margin-bottom:14px;padding:10px 2px;background:rgba(11,15,23,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);transition:background .3s}
+.brand .dot.live{background:var(--ok);animation:pulse 2s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(93,211,158,.45)}70%{box-shadow:0 0 0 9px rgba(93,211,158,0)}100%{box-shadow:0 0 0 0 rgba(93,211,158,0)}}
+.brand h1{margin:0;font-size:13px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:var(--text)}
 .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
 @media(max-width:720px){.grid{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:var(--pad);box-shadow:0 8px 30px rgba(0,0,0,.35)}
@@ -97,7 +101,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 </head>
 <body>
 <div class="page">
-<header><div class="brand"><h1>MiniProject Alarm</h1></div></header>
+<header><div class="brand"><span id="hdrDot" class="dot"></span><h1>MiniProject Alarm</h1></div></header>
 <div class="grid">
 <div class="card">
 <h2>System <span class="info"><span class="ico">i</span><span class="tip">Short press physical button = start/stop. Hold 3 s = reset thresholds &amp; calibration.</span></span></h2>
@@ -129,7 +133,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <table><thead><tr><th>#</th><th>Raw</th><th>Corrected</th><th>Offset cm</th><th>Scale ×</th><th>Delay ms</th><th>State</th><th>Pwr</th></tr></thead><tbody id="sensorBody"></tbody></table>
 <div class="actions"><button class="btn btn-primary" id="calBtn" onclick="applyCalibration()" disabled>Apply calibration</button><span id="calMsg" class="muted"></span></div>
 </div>
-<details class="debug"><summary>Debug details <span class="muted">WiFi · heap · uptime</span> <span class="info"><span class="ico">i</span><span class="tip">RSSI = WiFi signal strength, closer to 0 is better (−50 great, −80 drops). Free heap = spare RAM for variables; if it keeps shrinking something leaks. Uptime = time since last boot.</span></span></summary><div class="debug-body"><div class="kvs"><dt>WiFi</dt><dd id="wifi">—</dd><dt>Network</dt><dd id="ssid">—</dd><dt>IP</dt><dd id="ip">—</dd><dt>RSSI</dt><dd id="rssi">—</dd><dt>Free heap</dt><dd id="heap">—</dd><dt>Uptime</dt><dd id="uptime">—</dd></div></div></details>
+<details class="debug"><summary>Debug details <span class="muted">WiFi · heap · uptime</span> <span class="info"><span class="ico">i</span><span class="tip">RSSI = WiFi signal strength, closer to 0 is better (−50 great, −80 drops). Free heap = spare RAM for variables; if it keeps shrinking something leaks. Uptime = time since last boot.</span></span></summary><div class="debug-body"><div class="kvs"><dt>WiFi</dt><dd id="wifi">—</dd><dt>Network</dt><dd id="ssid">—</dd><dt>Button</dt><dd id="btnst">—</dd><dt>IP</dt><dd id="ip">—</dd><dt>RSSI</dt><dd id="rssi">—</dd><dt>Free heap</dt><dd id="heap">—</dd><dt>Uptime</dt><dd id="uptime">—</dd></div></div></details>
 </div>
 <script>
 const AXIS_Y=100,X0=16,XW=288,BEAM_H=66,LOGMAX=Math.log(450);
@@ -247,6 +251,7 @@ function renderSensors(j){
 function render(j,latMs){
  const live=!!j.running;
  lastCfg={danger:j.danger_cm,warn:j.warn_cm,interval:j.sample_interval_ms,timeout:j.echo_timeout_ms};
+ document.getElementById('hdrDot').classList.toggle('live',live);
  document.getElementById('nearest').textContent=live&&j.nearest_cm>=0?j.nearest_cm.toFixed(1):'—';
  const tb=document.getElementById('tierBadge');
  tb.textContent=live?j.tier:'—';
@@ -259,6 +264,7 @@ function render(j,latMs){
  updateRadar(j.nearest_cm,j.tier);
  const wifiEl=document.getElementById('wifi');wifiEl.textContent=j.wifi_connected?'connected':'offline';wifiEl.className=j.wifi_connected?'ok':'bad';
  document.getElementById('ssid').textContent=j.ssid||'—';
+ const bs=document.getElementById('btnst');bs.textContent=j.button||'—';bs.className=j.button==='idle'?'':'ok';
  document.getElementById('ip').textContent=j.ip;
  document.getElementById('rssi').textContent=j.rssi_dbm+' dBm';
  document.getElementById('heap').textContent=(j.free_heap/1024).toFixed(0)+' KB';

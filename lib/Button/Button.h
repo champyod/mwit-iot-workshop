@@ -8,8 +8,8 @@ public:
 
     void begin();
 
-    // Call every loop pass. True exactly once per debounced falling edge.
     bool wasPressed();
+    bool wasLongPressed(unsigned long holdMs = 3000);
 
 private:
     uint8_t pin_;
@@ -17,6 +17,8 @@ private:
     bool lastStableState_ = HIGH;
     bool lastRawState_    = HIGH;
     unsigned long lastChangeMs_ = 0;
+    unsigned long pressStartMs_ = 0;
+    bool longFired_ = false;
 
     static constexpr unsigned long DEBOUNCE_MS = 30;
 };

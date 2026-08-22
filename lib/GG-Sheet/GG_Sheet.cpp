@@ -49,12 +49,23 @@ String GGSheet::buildQuery(const char* run,
          + "&heatIndex="   + heatIndex;
 }
 
-String GGSheet::buildZoneQuery(const char* run,
-                               float nearestCm,
-                               const char* tier) {
-    return String("?run=")       + run
-         + "&nearest_cm=" + String(nearestCm, 1)
-         + "&tier="       + tier;
+String GGSheet::buildTelemetryQuery(const ZoneTelemetry& t) {
+    char buf[320];
+    snprintf(buf, sizeof(buf),
+             "?run=%s&event=%s&running=%s&nearest_cm=%.1f&tier=%s"
+             "&s1_raw=%.1f&s1_cm=%.1f&s1_status=%s"
+             "&s2_raw=%.1f&s2_cm=%.1f&s2_status=%s"
+             "&rssi_dbm=%d&free_heap=%u&uptime_ms=%lu",
+             t.run,
+             t.tierChange ? "tier_change" : "heartbeat",
+             t.running ? "true" : "false",
+             t.nearestCm, t.tier,
+             t.raw[0], t.cm[0], t.status[0],
+             t.raw[1], t.cm[1], t.status[1],
+             t.rssiDbm,
+             (unsigned)t.freeHeap,
+             t.uptimeMs);
+    return String(buf);
 }
 
 // Parse "Location: https://host/path?..." → host + path+query
@@ -157,10 +168,8 @@ bool GGSheet::send(const char* run,
     return fetchWithRedirects(host, path);
 }
 
-bool GGSheet::sendZone(const char* run,
-                       float nearestCm,
-                       const char* tier) {
+bool GGSheet::sendTelemetry(const ZoneTelemetry& t) {
     String host = host_;
-    String path = String(path_) + buildZoneQuery(run, nearestCm, tier);
+    String path = String(path_) + buildTelemetryQuery(t);
     return fetchWithRedirects(host, path);
 }

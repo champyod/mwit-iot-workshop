@@ -61,9 +61,17 @@ const char* RUN_LABEL = "danger-zone";
 enum class LogJobType : uint8_t { SHEET_ROW, DISCORD_ALERT };
 struct LogJob {
     LogJobType type;
+    bool tierChange;
+    bool running;
     float nearestCm;
     float threshCm;
     char tier[8];
+    float raw[2];
+    float cm[2];
+    char status[2][16];
+    int rssiDbm;
+    uint32_t freeHeap;
+    unsigned long uptimeMs;
 };
 constexpr UBaseType_t LOG_QUEUE_LEN = 8;
 constexpr UBaseType_t LOG_TASK_PRIORITY = 1;
@@ -108,9 +116,24 @@ static void cloudLogTask(void*) {
     for (;;) {
         if (xQueueReceive(logQueue, &job, portMAX_DELAY) != pdTRUE) continue;
         switch (job.type) {
-        case LogJobType::SHEET_ROW:
-            sheets.sendZone(RUN_LABEL, job.nearestCm, job.tier);
+        case LogJobType::SHEET_ROW: {
+            ZoneTelemetry tel{};
+            tel.run = RUN_LABEL;
+            tel.running = job.running;
+            tel.tierChange = job.tierChange;
+            tel.nearestCm = job.nearestCm;
+            tel.tier = job.tier;
+            for (uint8_t i = 0; i < 2; ++i) {
+                tel.raw[i] = job.raw[i];
+                tel.cm[i] = job.cm[i];
+                tel.status[i] = job.status[i];
+            }
+            tel.rssiDbm = job.rssiDbm;
+            tel.freeHeap = job.freeHeap;
+            tel.uptimeMs = job.uptimeMs;
+            sheets.sendTelemetry(tel);
             break;
+        }
         case LogJobType::DISCORD_ALERT:
             if (strcmp(job.tier, "WARN") == 0) {
                 discord.sendZoneWarn(job.nearestCm, job.threshCm);
@@ -251,6 +274,25 @@ static bool parseJsonValueAt(const String& body, int colon, float& out) {
     return true;
 }
 
+// Snapshot engine/wifi/device state in loop() context — the cloud task
+// never touches shared objects directly.
+static void fillTelemetry(LogJob& job) {
+    job.running = engine.isRunning();
+    job.nearestCm = engine.nearestCm();
+    strncpy(job.tier, tierName(engine.tier()), sizeof(job.tier) - 1);
+    job.tier[sizeof(job.tier) - 1] = '\0';
+    for (uint8_t i = 0; i < engine.sensorCount(); ++i) {
+        job.raw[i] = engine.sensorRawCm(i);
+        job.cm[i] = engine.sensorCm(i);
+        strncpy(job.status[i], echoStatusName(engine.sensorStatus(i)),
+                sizeof(job.status[i]) - 1);
+        job.status[i][sizeof(job.status[i]) - 1] = '\0';
+    }
+    job.rssiDbm = wifi.connected() ? wifi.rssi() : 0;
+    job.freeHeap = ESP.getFreeHeap();
+    job.uptimeMs = millis();
+}
+
 static void logToSheetsIfNeeded(bool forceRow) {
     static unsigned long lastSheetMs = 0;
     if (!wifi.connected() || !engine.isRunning()) return;
@@ -261,9 +303,8 @@ static void logToSheetsIfNeeded(bool forceRow) {
 
     LogJob job{};
     job.type = LogJobType::SHEET_ROW;
-    job.nearestCm = engine.nearestCm();
-    strncpy(job.tier, tierName(engine.tier()), sizeof(job.tier) - 1);
-    job.tier[sizeof(job.tier) - 1] = '\0';
+    job.tierChange = forceRow;
+    fillTelemetry(job);
     enqueueLogJob(job);
 }
 

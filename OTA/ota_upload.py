@@ -32,7 +32,7 @@ def ota_upload(firmware_path, host, port=3232, password=""):
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(30)
+        sock.settimeout(60)
         # Resolve mDNS (.local)
         if host.endswith(".local"):
             import socket as _s

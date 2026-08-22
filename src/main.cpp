@@ -24,6 +24,7 @@ static AsyncEventSource events("/api/events");
 static String cfgBody;
 static volatile bool btnShortReq = false;
 static volatile bool btnLongReq = false;
+static volatile bool httpToggleReq = false;
 
 static void buttonTask(void *arg);
 
@@ -291,9 +292,10 @@ static void pushEvents() {
 }
 
 static void handleToggle(AsyncWebServerRequest *req) {
-    engine.setRunning(!engine.isRunning());
-    Logger.printf("[ENGINE] %s\n", engine.isRunning() ? "RUNNING" : "PAUSED");
-    pushEvents();
+    // Async handlers run on the tcp task; mutating the engine here races with
+    // loop()'s sample cycle (applyOutputs can re-light outputs after the stop).
+    // Defer like the button flags so the change applies between cycles.
+    httpToggleReq = true;
     req->send(200, "application/json", buildStatusJson());
 }
 
@@ -522,6 +524,11 @@ void loop() {
         btnShortReq = false;
         engine.setRunning(!engine.isRunning());
         Logger.printf("[ENGINE] %s\n", engine.isRunning() ? "RUNNING" : "PAUSED");
+        pushEvents();
+    } else if (httpToggleReq) {
+        httpToggleReq = false;
+        engine.setRunning(!engine.isRunning());
+        Logger.printf("[ENGINE] %s (http)\n", engine.isRunning() ? "RUNNING" : "PAUSED");
         pushEvents();
     }
 

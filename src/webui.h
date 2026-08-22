@@ -106,6 +106,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <span id="tierBadge" class="tierBadge idle">—</span>
 <button id="toggleBtn" class="btn btn-start" onclick="toggleEngine()" disabled>START</button>
 </div>
+<div class="actions" style="margin-top:8px;justify-content:flex-start"><span class="muted">Discord alerts</span><span id="dcSw" class="switch on" role="switch" onclick="toggleDiscord(this)" title="Mute/unmute Discord notifications"><span class="track"></span><span class="knob"></span></span></div>
 <div class="radar"><svg id="radarSvg" viewBox="0 0 320 118" aria-hidden="true"></svg><div id="noSig" class="noSig" style="display:none">NO SIGNAL</div><div id="syncing" class="noSig" style="display:none;z-index:2;background:rgba(14,19,30,.55)"><span class="spin"></span>&nbsp;SYNCING</div></div>
 <div class="actions"><button class="btn btn-reset" id="resetBtn" onclick="doReset()" disabled>Reset defaults</button><span class="muted">Link delay <b id="latency" class="mono">—</b></span></div>
 </div>
@@ -187,6 +188,7 @@ function sensorBadge(cm){
 }
 let lastSensors=[];
 let lastCfg={};
+let discordOn=true;
 function valOf(id){const el=document.getElementById(id);return el?el.value:''}
 function isDirty(id,sv){if(sv===undefined)return false;const v=valOf(id);return v!==''&&v!==String(sv)}
 function refreshActionStates(){
@@ -257,6 +259,7 @@ function render(j,latMs){
  radarRun=!!j.running;
  if(j.sample_interval_ms)curSample=j.sample_interval_ms;
  updateRadar(j.nearest_cm,j.tier);
+ if(j.discord!==undefined){discordOn=j.discord;document.getElementById('dcSw').classList.toggle('on',j.discord)}
  const wifiEl=document.getElementById('wifi');wifiEl.textContent=j.wifi_connected?'connected':'offline';wifiEl.className=j.wifi_connected?'ok':'bad';
  document.getElementById('ssid').textContent=j.ssid||'—';
  const bs=document.getElementById('btnst');bs.textContent=j.button||'—';bs.className=j.button==='idle'?'':'ok';
@@ -279,6 +282,7 @@ async function postJson(url,body){
  return r.json();
 }
 function applyConfig(j){
+ if(j.discord!==undefined){discordOn=j.discord;document.getElementById('dcSw').classList.toggle('on',j.discord)}
  if(j.danger_cm!==undefined)lastCfg.danger=j.danger_cm;
  if(j.warn_cm!==undefined)lastCfg.warn=j.warn_cm;
  if(j.sample_interval_ms!==undefined)lastCfg.interval=j.sample_interval_ms;
@@ -345,15 +349,21 @@ async function doReset(){
  runAction(document.getElementById('resetBtn'),null,()=>postJson('/api/reset'),['dangerIn','warnIn','intervalIn','timeoutIn',...sensorInputIds()],'config');
 }
 async function toggleSensor(i,el){
- if(!lastSensors[i]||el.dataset.busy)return;
- el.dataset.busy='1';el.style.opacity='.45';showSync();
- const payload=buildSensorPayload();
- payload[i].enabled=!payload[i].enabled;
- try{
-  const j=await postJson('/api/config',{sensors:payload});
-  applyConfig(j);
-  clearDirty(sensorInputIds());
- }catch(e){}
+  if(!lastSensors[i]||el.dataset.busy)return;
+  el.dataset.busy='1';el.style.opacity='.45';showSync();
+  const payload=buildSensorPayload();
+  payload[i].enabled=!payload[i].enabled;
+  try{
+   const j=await postJson('/api/config',{sensors:payload});
+   applyConfig(j);
+   clearDirty(sensorInputIds());
+  }catch(e){}
+  delete el.dataset.busy;el.style.opacity='';
+}
+async function toggleDiscord(el){
+ if(el.dataset.busy)return;
+ el.dataset.busy='1';el.style.opacity='.45';
+ try{await postJson('/api/config',{discord_enabled:!discordOn})}catch(e){}
  delete el.dataset.busy;el.style.opacity='';
 }
 async function fetchOnce(){

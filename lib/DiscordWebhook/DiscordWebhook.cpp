@@ -245,7 +245,7 @@ bool DiscordWebhook::sendRecovery(float temperature, float humidity, float heatI
     return sendPayload(payload);
 }
 
-String DiscordWebhook::buildZoneAlertPayload(float nearestCm) {
+String DiscordWebhook::buildZoneAlertPayload(float nearestCm, float dangerCm) {
     const String ts = buildTimestamp();
     String json;
     json.reserve(400);
@@ -262,7 +262,9 @@ String DiscordWebhook::buildZoneAlertPayload(float nearestCm) {
     json += String(nearestCm, 1);
     json += " cm\",\"inline\":true},";
 
-    json += "{\"name\":\"Threshold\",\"value\":\"<= 50 cm\",\"inline\":true},";
+    json += "{\"name\":\"Threshold\",\"value\":\"<= ";
+    json += String(dangerCm, 1);
+    json += " cm\",\"inline\":true},";
 
     json += "{\"name\":\"Status\",\"value\":\"DANGER\",\"inline\":true}";
 
@@ -272,7 +274,41 @@ String DiscordWebhook::buildZoneAlertPayload(float nearestCm) {
     return json;
 }
 
-bool DiscordWebhook::sendZoneAlert(float nearestCm) {
-    String payload = buildZoneAlertPayload(nearestCm);
+bool DiscordWebhook::sendZoneAlert(float nearestCm, float dangerCm) {
+    String payload = buildZoneAlertPayload(nearestCm, dangerCm);
+    return sendPayload(payload);
+}
+
+String DiscordWebhook::buildZoneWarnPayload(float nearestCm, float warnCm) {
+    const String ts = buildTimestamp();
+    String json;
+    json.reserve(400);
+
+    json += "{\"embeds\":[{\"color\":";
+    json += 15251020;  // #E8B64C — matches dashboard WARN color
+    json += ",\"title\":\"Warning Zone\"";
+    json += ",\"description\":\"Worker approaching machinery warning zone.\"";
+    json += ",\"timestamp\":\"";
+    json += ts;
+    json += "\",\"fields\":[";
+
+    json += "{\"name\":\"Nearest Distance\",\"value\":\"";
+    json += String(nearestCm, 1);
+    json += " cm\",\"inline\":true},";
+
+    json += "{\"name\":\"Threshold\",\"value\":\"<= ";
+    json += String(warnCm, 1);
+    json += " cm\",\"inline\":true},";
+
+    json += "{\"name\":\"Status\",\"value\":\"WARN\",\"inline\":true}";
+
+    json += "],\"footer\":{\"text\":\"miniproject\"}";
+    json += "}]}";
+
+    return json;
+}
+
+bool DiscordWebhook::sendZoneWarn(float nearestCm, float warnCm) {
+    String payload = buildZoneWarnPayload(nearestCm, warnCm);
     return sendPayload(payload);
 }

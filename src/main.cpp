@@ -26,6 +26,7 @@ static String cfgBody;
 static volatile bool btnShortReq = false;
 static volatile bool btnLongReq = false;
 static volatile bool httpToggleReq = false;
+static volatile bool discordEnabled = true;
 
 static void buttonTask(void *arg);
 
@@ -44,7 +45,8 @@ static DiscordWebhook discord(DISCORD_WEBHOOK_URL);
 
 namespace {
 constexpr unsigned long SHEET_LOG_INTERVAL_MS = 10000UL;
-constexpr unsigned long DISCORD_COOLDOWN_MS   = 60000UL;
+constexpr unsigned long DISCORD_DANGER_RESEND_MS = 10000UL;
+constexpr unsigned long DISCORD_WARN_RESEND_MS   = 60000UL;
 constexpr unsigned long SENSOR_REPORT_INTERVAL_MS = 1000UL;
 constexpr unsigned long SENSOR_OK_HEARTBEAT_MS    = 10000UL;
 constexpr unsigned long EVENT_PUSH_INTERVAL_MS    = 500UL;
@@ -60,6 +62,7 @@ enum class LogJobType : uint8_t { SHEET_ROW, DISCORD_ALERT };
 struct LogJob {
     LogJobType type;
     float nearestCm;
+    float threshCm;
     char tier[8];
 };
 constexpr UBaseType_t LOG_QUEUE_LEN = 8;
@@ -109,7 +112,11 @@ static void cloudLogTask(void*) {
             sheets.sendZone(RUN_LABEL, job.nearestCm, job.tier);
             break;
         case LogJobType::DISCORD_ALERT:
-            discord.sendZoneAlert(job.nearestCm);
+            if (strcmp(job.tier, "WARN") == 0) {
+                discord.sendZoneWarn(job.nearestCm, job.threshCm);
+            } else {
+                discord.sendZoneAlert(job.nearestCm, job.threshCm);
+            }
             break;
         }
     }
@@ -177,6 +184,7 @@ static String buildStatusJson() {
     json += ",\"rssi_dbm\":" + String(wifi.rssi());
     json += ",\"free_heap\":" + String(ESP.getFreeHeap());
     json += ",\"running\":" + String(engine.isRunning() ? "true" : "false");
+    json += ",\"discord\":" + String(discordEnabled ? "true" : "false");
     json += ",\"nearest_cm\":" + String(engine.nearestCm(), 1);
     json += ",\"tier\":\"" + String(tierName(engine.tier())) + "\"";
     json += ",\"danger_cm\":" + String(engine.dangerThresh(), 1);
@@ -261,22 +269,44 @@ static void logToSheetsIfNeeded(bool forceRow) {
 
 static void pushEvents();
 
-static void alertOnDangerEntry() {
-    static unsigned long lastDiscordMs = 0;
+// One message of tier T may fire only if tier T hasn't fired within its
+// window (DANGER 10 s, WARN 60 s). Entries fire instantly; sustained tiers
+// re-fire on their cadence; de-escalations are silent.
+static unsigned long lastDangerSendMs = static_cast<unsigned long>(-1);
+static unsigned long lastWarnSendMs   = static_cast<unsigned long>(-1);
+
+static void enqueueDiscord(RiskTier tier) {
+    LogJob job{};
+    job.type = LogJobType::DISCORD_ALERT;
+    job.nearestCm = engine.nearestCm();
+    job.threshCm = (tier == RiskTier::DANGER) ? engine.dangerThresh()
+                                              : engine.warnThresh();
+    strncpy(job.tier, tierName(tier), sizeof(job.tier) - 1);
+    job.tier[sizeof(job.tier) - 1] = '\0';
+    enqueueLogJob(job);  // failure is non-fatal
+}
+
+static void scheduleDiscordAlerts() {
+    if (!discordEnabled || !wifi.connected() || !engine.isRunning()) return;
+    const RiskTier tier = engine.tier();
+    const unsigned long now = millis();
+    if (tier == RiskTier::DANGER) {
+        if (now - lastDangerSendMs < DISCORD_DANGER_RESEND_MS) return;
+        lastDangerSendMs = now;
+        enqueueDiscord(tier);
+    } else if (tier == RiskTier::WARN) {
+        if (now - lastWarnSendMs < DISCORD_WARN_RESEND_MS) return;
+        lastWarnSendMs = now;
+        enqueueDiscord(tier);
+    }
+}
+
+static void alertOnTierChange() {
     if (!engine.consumeTierChanged()) return;
     pushEvents();
 
     logToSheetsIfNeeded(true);  // immediate row on any tier change
-
-    if (engine.tier() != RiskTier::DANGER) return;
-    if (!wifi.connected()) return;
-    if (millis() - lastDiscordMs < DISCORD_COOLDOWN_MS) return;
-    lastDiscordMs = millis();
-
-    LogJob job{};
-    job.type = LogJobType::DISCORD_ALERT;
-    job.nearestCm = engine.nearestCm();
-    enqueueLogJob(job);  // failure is non-fatal
+    scheduleDiscordAlerts();    // instant send on escalation entries
 }
 
 static void handleRoot(AsyncWebServerRequest *req) {
@@ -320,6 +350,19 @@ static void handleConfig(AsyncWebServerRequest *req) {
     if (parseJsonFloat(body, "danger_cm", tmp)) { danger = tmp; any = true; }
     if (parseJsonFloat(body, "warn_cm", tmp)) { warn = tmp; any = true; }
     if (any) engine.setThresholds(danger, warn);
+    const int dcPos = body.indexOf("\"discord_enabled\"");
+    if (dcPos >= 0) {
+        const int colon = body.indexOf(':', dcPos);
+        if (colon >= 0) {
+            const int end = body.indexOf('}', colon);
+            String seg = body.substring(colon + 1,
+                                        end < 0 ? body.length() : end);
+            seg.trim();
+            discordEnabled = seg.startsWith("true");
+            Logger.printf("[CONFIG] discord alerts %s\n",
+                          discordEnabled ? "on" : "off");
+        }
+    }
     if (parseJsonFloat(body, "sample_interval_ms", tmp)) engine.setSampleIntervalMs((unsigned long)tmp);
     if (parseJsonFloat(body, "echo_timeout_ms", tmp)) {
         us1.setTimeoutUs((unsigned long)(tmp * 1000.0f));
@@ -538,7 +581,8 @@ void loop() {
     }
 
     engine.handle();
-    alertOnDangerEntry();
+    alertOnTierChange();
+    scheduleDiscordAlerts();
     reportSensorHealth();
     logToSheetsIfNeeded(false);
 

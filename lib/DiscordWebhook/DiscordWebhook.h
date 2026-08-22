@@ -8,7 +8,8 @@ public:
 
     bool sendAlert(float temperature, float humidity, float heatIndex);
     bool sendRecovery(float temperature, float humidity, float heatIndex);
-    bool sendZoneAlert(float nearestCm);
+    bool sendZoneAlert(float nearestCm, float dangerCm);
+    bool sendZoneWarn(float nearestCm, float warnCm);
 
 private:
     String host_;
@@ -22,5 +23,6 @@ private:
     String buildTimestamp();
     String buildAlertPayload(float temperature, float humidity, float heatIndex);
     String buildRecoveryPayload(float temperature, float humidity, float heatIndex);
-    String buildZoneAlertPayload(float nearestCm);
+    String buildZoneAlertPayload(float nearestCm, float dangerCm);
+    String buildZoneWarnPayload(float nearestCm, float warnCm);
 };

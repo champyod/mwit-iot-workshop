@@ -19,7 +19,9 @@ header{margin-bottom:16px}
 .sysTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
 .bigNum{font-size:36px;font-weight:700;font-family:ui-monospace,monospace;line-height:1.05}
 .bigNum .unit{font-size:14px;color:var(--muted);font-weight:600;margin-left:4px}
-.tierBadge{padding:7px 14px;border-radius:999px;font-size:15px;font-weight:800;letter-spacing:.5px}
+#nearest{display:inline-block;min-width:5ch;text-align:right}
+.tierBadge{padding:7px 14px;border-radius:999px;font-size:15px;font-weight:800;letter-spacing:.5px;min-width:78px;text-align:center;display:inline-block;box-sizing:border-box}
+#latency{display:inline-block;min-width:5ch;text-align:right}
 .tierBadge.ok{background:rgba(93,211,158,.15);color:var(--ok)}
 .tierBadge.warn{background:rgba(232,182,76,.15);color:var(--warn)}
 .tierBadge.bad{background:rgba(239,106,106,.18);color:var(--bad)}
@@ -41,6 +43,11 @@ header{margin-bottom:16px}
 .sensors td{padding:10px 6px;border-bottom:1px solid rgba(42,54,82,.6);font-family:ui-monospace,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sensors td:first-child{font-family:system-ui,sans-serif;font-weight:600}
 tr.rowOff{filter:grayscale(1);opacity:.5}
+.switch{position:relative;display:inline-block;width:38px;height:20px;cursor:pointer;vertical-align:middle}
+.switch .track{position:absolute;inset:0;border-radius:999px;background:var(--card2);border:1px solid var(--line);transition:background .15s,border-color .15s}
+.switch .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
+.switch.on .track{background:rgba(93,211,158,.25);border-color:rgba(93,211,158,.5)}
+.switch.on .knob{transform:translateX(18px);background:var(--ok)}
 .badge{padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
 .badge.safe{background:rgba(93,211,158,.15);color:var(--ok)}
 .badge.warn{background:rgba(232,182,76,.15);color:var(--warn)}
@@ -93,7 +100,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <header><div class="brand"><h1>MiniProject Alarm</h1></div></header>
 <div class="grid">
 <div class="card">
-<h2>System</h2>
+<h2>System <span class="info"><span class="ico">i</span><span class="tip">Short press physical button = start/stop. Hold 3 s = reset thresholds &amp; calibration.</span></span></h2>
 <div class="sysTop">
 <div id="statWrap"><div class="bigNum"><span id="nearest">—</span><span class="unit">cm nearest</span></div></div>
 <span id="tierBadge" class="tierBadge idle">—</span>
@@ -101,10 +108,8 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 </div>
 <div class="radar"><svg id="radarSvg" viewBox="0 0 320 118" aria-hidden="true"></svg><div id="noSig" class="noSig" style="display:none">NO SIGNAL</div><div id="syncing" class="noSig" style="display:none;z-index:2;background:rgba(14,19,30,.55)"><span class="spin"></span>&nbsp;SYNCING</div></div>
 <div class="actions"><button class="btn btn-reset" id="resetBtn" onclick="doReset()" disabled>Reset defaults</button><span class="muted">Link delay <b id="latency" class="mono">—</b></span></div>
-<p class="muted" style="margin:10px 0 0">Short press physical button = start/stop. Hold 3 s = reset thresholds &amp; calibration.</p>
-</div>
 <div class="card">
-<h2>Range config <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">live, resets on reboot</span></h2>
+<h2>Range config <span class="info"><span class="ico">i</span><span class="tip">Live, resets on reboot</span></span></h2>
 <div class="inputs">
 <div class="field"><label>Danger ≤ cm</label><input id="dangerIn" type="number" step="1" min="5" max="400" placeholder="—"></div>
 <div class="field"><label>Warn ≤ cm</label><input id="warnIn" type="number" step="1" min="5" max="450" placeholder="—"></div>
@@ -174,13 +179,22 @@ function fmtUptime(ms){const s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.
 function tierClass(t){return t==='DANGER'?'bad':t==='WARN'?'warn':'ok'}
 function badgeFor(cm,t){if(cm<0) return '<span class="badge safe">no echo</span>';if(t==='DANGER') return '<span class="badge danger">DANGER</span>';if(t==='WARN') return '<span class="badge warn">WARN</span>';return '<span class="badge safe">SAFE</span>'}
 let lastSensors=[];
+let lastCfg={};
+function valOf(id){const el=document.getElementById(id);return el?el.value:''}
+function isDirty(id,sv){if(sv===undefined)return false;const v=valOf(id);return v!==''&&v!==String(sv)}
+function refreshActionStates(){
+ if(!firstData)return;
+ document.getElementById('thBtn').disabled=!isDirty('dangerIn',lastCfg.danger)&&!isDirty('warnIn',lastCfg.warn);
+ document.getElementById('timeBtn').disabled=!isDirty('intervalIn',lastCfg.interval)&&!isDirty('timeoutIn',lastCfg.timeout);
+ document.getElementById('calBtn').disabled=!lastSensors.some((s,i)=>isDirty('off'+i,s.offset)||isDirty('scale'+i,s.scale)||isDirty('dly'+i,s.delay_ms||10));
+}
 const rowRefs=[];
 const ACTION_BTN_IDS=['toggleBtn','resetBtn','thBtn','timeBtn','calBtn'];
 const WATCHDOG_MS=3000;
 const PUSH_STALE_MS=6000;
 let es=null,lastPushAt=0,firstData=false;
 
-document.addEventListener('input',e=>{if(e.target.tagName==='INPUT'&&e.target.type==='number')e.target.dataset.dirty='1'});
+document.addEventListener('input',e=>{if(e.target.tagName==='INPUT'&&e.target.type==='number')e.target.dataset.dirty='1';refreshActionStates()});
 function clearDirty(ids){ids.forEach(id=>{const el=document.getElementById(id);if(el)delete el.dataset.dirty})}
 function setInputClean(id,val){
  const el=document.getElementById(id);
@@ -196,9 +210,11 @@ function ensureRows(count){
    const off=numIn('off'+i,'Offset','0.1','-50','50');
    const scale=numIn('scale'+i,'Scale','0.05','0.5','2');
    const dly=numIn('dly'+i,'Delay ms','10','10','5000');
-  const pwrBtn=document.createElement('button');
-  pwrBtn.textContent='ON';
-  pwrBtn.addEventListener('click',()=>toggleSensor(i,pwrBtn));
+   const pwrBtn=document.createElement('span');
+   pwrBtn.className='switch';
+   pwrBtn.setAttribute('role','switch');
+   pwrBtn.innerHTML='<span class="track"></span><span class="knob"></span>';
+   pwrBtn.addEventListener('click',()=>toggleSensor(i,pwrBtn));
   const pwrTd=mk('Power');pwrTd.appendChild(pwrBtn);
   tr.append(mk('#',i+1),rawTd,cmTd,off,scale,dly,stateTd,pwrTd);
   document.getElementById('sensorBody').appendChild(tr);
@@ -215,8 +231,7 @@ function renderSensors(j){
   r.cmTd.innerHTML=s.cm>=0?s.cm.toFixed(1)+' cm':'—';
   r.stateTd.innerHTML=s.enabled===false?'—':(s.cm>=0?badgeFor(s.cm,j.tier):'<span class="badge danger" title="read failed">FAILED</span>');
   const on=s.enabled!==false;
-  r.pwrBtn.setAttribute('style',`padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${on?'rgba(93,211,158,.4)':'var(--line)'};background:${on?'rgba(93,211,158,.12)':'transparent'};color:${on?'var(--ok)':'var(--muted)'}`);
-  if(r.pwrBtn.textContent!==(on?'ON':'OFF'))r.pwrBtn.textContent=on?'ON':'OFF';
+  r.pwrBtn.classList.toggle('on',on);
   setInputClean('off'+i,s.offset);
   setInputClean('scale'+i,s.scale);
   setInputClean('dly'+i,s.delay_ms||10);
@@ -224,6 +239,7 @@ function renderSensors(j){
 }
 function render(j,latMs){
  const live=!!j.running;
+ lastCfg={danger:j.danger_cm,warn:j.warn_cm,interval:j.sample_interval_ms,timeout:j.echo_timeout_ms};
  document.getElementById('nearest').textContent=live&&j.nearest_cm>=0?j.nearest_cm.toFixed(1):'—';
  const tb=document.getElementById('tierBadge');
  tb.textContent=live?j.tier:'—';
@@ -245,6 +261,7 @@ function render(j,latMs){
  setInputClean('intervalIn',j.sample_interval_ms);
  setInputClean('timeoutIn',j.echo_timeout_ms);
  renderSensors(j);
+ refreshActionStates();
  if(!firstData){firstData=true;ACTION_BTN_IDS.forEach(id=>{document.getElementById(id).disabled=false})}
 }
 async function postJson(url,body){
@@ -253,6 +270,10 @@ async function postJson(url,body){
  return r.json();
 }
 function applyConfig(j){
+ if(j.danger_cm!==undefined)lastCfg.danger=j.danger_cm;
+ if(j.warn_cm!==undefined)lastCfg.warn=j.warn_cm;
+ if(j.sample_interval_ms!==undefined)lastCfg.interval=j.sample_interval_ms;
+ if(j.echo_timeout_ms!==undefined)lastCfg.timeout=j.echo_timeout_ms;
  if(j.danger_cm!==undefined)setInputClean('dangerIn',j.danger_cm);
  if(j.warn_cm!==undefined)setInputClean('warnIn',j.warn_cm);
  if(j.sample_interval_ms!==undefined)setInputClean('intervalIn',j.sample_interval_ms);
@@ -265,11 +286,10 @@ function applyConfig(j){
    setInputClean('off'+i,s.offset);setInputClean('scale'+i,s.scale);setInputClean('dly'+i,s.delay_ms||10);
    const on=s.enabled!==false;
    r.tr.classList.toggle('rowOff',!on);
-   const lbl=on?'ON':'OFF';
-   if(r.pwrBtn.textContent!==lbl)r.pwrBtn.textContent=lbl;
-   r.pwrBtn.setAttribute('style',`padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${on?'rgba(93,211,158,.4)':'var(--line)'};background:${on?'rgba(93,211,158,.12)':'transparent'};color:${on?'var(--ok)':'var(--muted)'}`);
+   r.pwrBtn.classList.toggle('on',on);
   });
  }
+ refreshActionStates();
 }
 async function runAction(btn,msgEl,send,clearIds=[],mode='full'){
  const orig=btn.textContent,origCls=btn.className;
@@ -284,7 +304,8 @@ async function runAction(btn,msgEl,send,clearIds=[],mode='full'){
   if(msgEl){msgEl.textContent='Applied';setTimeout(()=>msgEl.textContent='',1500)}
  }catch(e){if(msgEl)msgEl.textContent='Failed'}
  finally{
-  btn.disabled=false;
+  const managed=btn.id==='thBtn'||btn.id==='timeBtn'||btn.id==='calBtn';
+  if(managed)refreshActionStates();else btn.disabled=false;
   if(!ok||btn.textContent===''){btn.textContent=orig;btn.className=origCls}
  }
 }
@@ -314,11 +335,17 @@ async function applyCalibration(){
 async function doReset(){
  runAction(document.getElementById('resetBtn'),null,()=>postJson('/api/reset'),['dangerIn','warnIn','intervalIn','timeoutIn',...sensorInputIds()],'config');
 }
-async function toggleSensor(i,btnEl){
- if(!lastSensors[i])return;
+async function toggleSensor(i,el){
+ if(!lastSensors[i]||el.dataset.busy)return;
+ el.dataset.busy='1';el.style.opacity='.45';showSync();
  const payload=buildSensorPayload();
  payload[i].enabled=!payload[i].enabled;
-  await runAction(btnEl,null,()=>postJson('/api/config',{sensors:payload}),[],'config');
+ try{
+  const j=await postJson('/api/config',{sensors:payload});
+  applyConfig(j);
+  clearDirty(sensorInputIds());
+ }catch(e){}
+ delete el.dataset.busy;el.style.opacity='';
 }
 async function fetchOnce(){
  try{

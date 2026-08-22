@@ -78,6 +78,10 @@ void LED::blinkCount(unsigned int count, float hz) {
 
 void LED::blink(float hz, unsigned long durationMs) {
     if (hz <= 0) return;
+    // Re-arming every control cycle would restart the phase timer and freeze
+    // patterns slower than the cycle period; keep an identical run running.
+    if (blinking_ && hz_ == hz && durationMs_ == durationMs) return;
+
     off();
 
     detachPWM();

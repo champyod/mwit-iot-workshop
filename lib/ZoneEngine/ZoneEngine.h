@@ -23,6 +23,21 @@ public:
     // Edge flag: true exactly once per tier transition, then resets.
     bool consumeTierChanged();
 
+    // Live config — thresholds and per-sensor calibration (live-only, no NVS).
+    void  setThresholds(float dangerCm, float warnCm);
+    float dangerThresh() const { return dangerThresh_; }
+    float warnThresh()   const { return warnThresh_; }
+
+    void  setCalibration(uint8_t idx, float offsetCm, float scale);
+    float calibrationOffset(uint8_t idx) const;
+    float calibrationScale(uint8_t idx) const;
+
+    float   sensorCm(uint8_t idx) const;
+    float   sensorRawCm(uint8_t idx) const;
+    uint8_t sensorCount() const { return 2; }
+
+    void resetDefaults();
+
 private:
     void sampleSensors();
     void applyOutputs();
@@ -40,4 +55,11 @@ private:
     float    nearestCm_   = -1.0f;
 
     unsigned long lastSampleMs_ = 0;
+
+    float dangerThresh_ = 50.0f;
+    float warnThresh_   = 100.0f;
+    float offsets_[2]   = {0.0f, 0.0f};
+    float scales_[2]    = {1.0f, 1.0f};
+    float raw_[2]       = {-1.0f, -1.0f};
+    float corrected_[2] = {-1.0f, -1.0f};
 };

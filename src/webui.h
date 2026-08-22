@@ -23,6 +23,7 @@ header{margin-bottom:16px}
 .tierBadge.ok{background:rgba(93,211,158,.15);color:var(--ok)}
 .tierBadge.warn{background:rgba(232,182,76,.15);color:var(--warn)}
 .tierBadge.bad{background:rgba(239,106,106,.18);color:var(--bad)}
+.tierBadge.idle{background:transparent;color:var(--muted)}
 .radar{position:relative;margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:4px 6px 0}
 .radar svg{width:100%;height:auto;display:block}
 .noSig{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:1px}
@@ -77,7 +78,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <h2>System</h2>
 <div class="sysTop">
 <div id="statWrap"><div class="bigNum"><span id="nearest">—</span><span class="unit">cm nearest</span></div></div>
-<span id="tierBadge" class="tierBadge ok" style="display:none">SAFE</span>
+<span id="tierBadge" class="tierBadge idle">—</span>
 <button id="toggleBtn" class="btn btn-start" onclick="toggleEngine()" disabled>START</button>
 </div>
 <div class="radar"><svg id="radarSvg" viewBox="0 0 320 118" aria-hidden="true"></svg><div id="noSig" class="noSig" style="display:none">NO SIGNAL</div><div id="syncing" class="noSig" style="display:none;z-index:2;background:rgba(14,19,30,.55)"><span class="spin"></span>&nbsp;SYNCING</div></div>
@@ -94,7 +95,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 <h2 style="margin-top:16px">Timing</h2>
 <div class="inputs">
 <div class="field"><label>Sample every ms (10+)</label><input id="intervalIn" type="number" step="10" min="10" max="60000" placeholder="—"></div>
-<div class="field"><label>Echo window ms (≥45)</label><input id="timeoutIn" type="number" step="5" min="10" max="200" placeholder="—"></div>
+<div class="field"><label>Echo window ms</label><input id="timeoutIn" type="number" step="5" min="10" max="200" placeholder="—"></div>
 </div>
 <div class="actions"><button class="btn btn-primary" id="timeBtn" onclick="applyTiming()" disabled>Apply timing</button><span id="timeMsg" class="muted"></span></div>
 <p class="muted" style="margin:8px 0 0">Interval = how often a detection cycle repeats. Echo window = max wait for the return pulse; below ~45 ms this module reports FAILED.</p>
@@ -205,10 +206,10 @@ function renderSensors(j){
  });
 }
 function render(j,latMs){
- document.getElementById('nearest').textContent=j.nearest_cm>=0?j.nearest_cm.toFixed(1):'—';
- const live=!!j.running;
- document.getElementById('statWrap').style.display=live?'':'none';
- const tb=document.getElementById('tierBadge');tb.style.display=live?'':'none';tb.textContent=j.tier;tb.className='tierBadge '+tierClass(j.tier);
+ document.getElementById('nearest').textContent=live&&j.nearest_cm>=0?j.nearest_cm.toFixed(1):'—';
+ const tb=document.getElementById('tierBadge');
+ tb.textContent=live?j.tier:'—';
+ tb.className='tierBadge '+(live?tierClass(j.tier):'idle');
  const btn=document.getElementById('toggleBtn');
  const lbl=j.running?'STOP':'START';
  if(btn.textContent!==lbl){btn.textContent=lbl;btn.className='btn '+(j.running?'btn-stop':'btn-start')}

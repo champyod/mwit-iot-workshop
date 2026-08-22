@@ -1,6 +1,8 @@
 #pragma once
 #include <Arduino.h>
 #include <WiFi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #define LOG_TELNET_MAX  4
 #define LOG_BUF_SIZE    2048
@@ -32,10 +34,16 @@ private:
     WiFiClient clients_[LOG_TELNET_MAX];
     int numClients_;
     bool telnetReady_;
+    SemaphoreHandle_t mutex_;
 
     char buf_[LOG_BUF_SIZE];
     int head_, tail_;
     bool overflow_;
+
+    // All public output/handle paths must hold mutex_ — the cloud-log task
+    // logs concurrently with loop()'s handle().
+    void lock();
+    void unlock();
 
     void toAll(const char* data, size_t len);
     void drainOne(WiFiClient& c);

@@ -22,6 +22,10 @@ OTA ota("miniproject-ota");
 AsyncWebServer server(80);
 static AsyncEventSource events("/api/events");
 static String cfgBody;
+static volatile bool btnShortReq = false;
+static volatile bool btnLongReq = false;
+
+static void buttonTask(void *arg);
 
 static UltrasonicRCW us1(PIN_US1_TRIG, PIN_US1_ECHO);
 static UltrasonicRCW us2(PIN_US2_TRIG, PIN_US2_ECHO);
@@ -435,9 +439,25 @@ static void reportSensorHealth() {
     if (!allOk || stateChanged || heartbeatDue) Logger.println(line);
 }
 
+// Owns the button exclusively and polls fast enough that taps shorter than
+// loop()'s sensor-blocking windows are never missed. loop() consumes flags.
+static void buttonTask(void *arg) {
+    (void)arg;
+    for (;;) {
+        if (engineButton.wasLongPressed(3000)) btnLongReq = true;
+        if (engineButton.wasPressed()) btnShortReq = true;
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+}
+
 void setup() {
     Logger.begin(115200);
     Logger.println("=== MiniProject: Danger Zone Alert ===");
+
+    for (uint8_t p : {PIN_LED_SAFE, PIN_LED_WARN, PIN_LED_DANGER, PIN_BUZZER}) {
+        pinMode(p, OUTPUT);
+        digitalWrite(p, LOW);
+    }
 
     us1.begin();
     us2.begin();
@@ -458,6 +478,11 @@ void setup() {
 
     wifi.begin();
     ota.begin();
+
+    if (xTaskCreatePinnedToCore(buttonTask, "button", 2048, nullptr,
+                                2, nullptr, 0) != pdPASS) {
+        Logger.println("[BTN] failed to start button task");
+    }
 
     server.on("/", HTTP_GET, handleRoot);
     server.on("/api/status", HTTP_GET, handleStatus);
@@ -488,12 +513,18 @@ void setup() {
 }
 
 void loop() {
-    if (engineButton.wasLongPressed(3000)) {
+    if (btnLongReq) {
+        btnLongReq = false;
         engine.resetDefaults();
+        us1.setTimeoutUs(DEFAULT_ECHO_TIMEOUT_MS * 1000UL);
+        us2.setTimeoutUs(DEFAULT_ECHO_TIMEOUT_MS * 1000UL);
         Logger.println("[ENGINE] RESET defaults (long press)");
-    } else if (engineButton.wasPressed()) {
+        pushEvents();
+    } else if (btnShortReq) {
+        btnShortReq = false;
         engine.setRunning(!engine.isRunning());
         Logger.printf("[ENGINE] %s\n", engine.isRunning() ? "RUNNING" : "PAUSED");
+        pushEvents();
     }
 
     engine.handle();

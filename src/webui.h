@@ -42,10 +42,9 @@ header{position:sticky;top:0;z-index:20;display:flex;justify-content:center;alig
 .sensors th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
 .sensors td{padding:10px 6px;border-bottom:1px solid rgba(42,54,82,.6);font-family:ui-monospace,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sensors td:first-child{font-family:system-ui,sans-serif;font-weight:600}
-tr.rowOff{filter:grayscale(1);opacity:.5}
 .switch{position:relative;display:inline-block;width:38px;height:20px;cursor:pointer;vertical-align:middle}
 .switch .track{position:absolute;inset:0;border-radius:999px;background:var(--card2);border:1px solid var(--line);transition:background .15s,border-color .15s}
-.switch .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
+.switch .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#e6ebf4;transition:transform .15s,background .15s}
 .switch.on .track{background:rgba(93,211,158,.25);border-color:rgba(93,211,158,.5)}
 .switch.on .knob{transform:translateX(18px);background:var(--ok)}
 .badge{padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
@@ -231,10 +230,9 @@ function ensureRows(count){
 function renderSensors(j){
  lastSensors=j.sensors||[];
  ensureRows(lastSensors.length);
- lastSensors.forEach((s,i)=>{
-  const r=rowRefs[i];
-  r.tr.classList.toggle('rowOff',s.enabled===false);
-  r.rawTd.innerHTML=s.raw>=0?s.raw.toFixed(1)+' cm':(s.enabled===false?'—':'<span class="badge danger" title="'+(s.status||'fail')+'">FAILED</span>');
+  lastSensors.forEach((s,i)=>{
+   const r=rowRefs[i];
+   r.rawTd.innerHTML=s.raw>=0?s.raw.toFixed(1)+' cm':(s.enabled===false?'—':'<span class="badge danger" title="'+(s.status||'fail')+'">FAILED</span>');
   r.cmTd.innerHTML=s.cm>=0?s.cm.toFixed(1)+' cm':'—';
   r.stateTd.innerHTML=s.enabled===false?'—':(s.cm>=0?sensorBadge(s.cm):'<span class="badge danger" title="read failed">FAILED</span>');
   const on=s.enabled!==false;
@@ -294,7 +292,6 @@ function applyConfig(j){
    const r=rowRefs[i];
    setInputClean('off'+i,s.offset);setInputClean('scale'+i,s.scale);setInputClean('dly'+i,s.delay_ms||10);
    const on=s.enabled!==false;
-   r.tr.classList.toggle('rowOff',!on);
    r.pwrBtn.classList.toggle('on',on);
   });
  }

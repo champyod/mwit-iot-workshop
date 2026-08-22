@@ -10,6 +10,7 @@
 #include <freertos/task.h>
 #include <freertos/queue.h>
 #include <string.h>
+#include <time.h>
 #include "pins.h"
 #include "credentials.h"
 #include "webui.h"
@@ -481,6 +482,7 @@ void setup() {
 
     wifi.begin();
     ota.begin();
+    configTime(0, 0, "pool.ntp.org", "time.google.com");
 
     if (xTaskCreatePinnedToCore(buttonTask, "button", 2048, nullptr,
                                 2, nullptr, 0) != pdPASS) {

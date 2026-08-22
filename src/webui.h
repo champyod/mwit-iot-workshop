@@ -108,6 +108,7 @@ details.debug[open] summary{border-bottom:1px solid var(--line)}
 </div>
 <div class="radar"><svg id="radarSvg" viewBox="0 0 320 118" aria-hidden="true"></svg><div id="noSig" class="noSig" style="display:none">NO SIGNAL</div><div id="syncing" class="noSig" style="display:none;z-index:2;background:rgba(14,19,30,.55)"><span class="spin"></span>&nbsp;SYNCING</div></div>
 <div class="actions"><button class="btn btn-reset" id="resetBtn" onclick="doReset()" disabled>Reset defaults</button><span class="muted">Link delay <b id="latency" class="mono">—</b></span></div>
+</div>
 <div class="card">
 <h2>Range config <span class="info"><span class="ico">i</span><span class="tip">Live, resets on reboot</span></span></h2>
 <div class="inputs">
@@ -178,6 +179,12 @@ buildRadar();requestAnimationFrame(tick);
 function fmtUptime(ms){const s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),sec=s%60;return d?`${d}d ${h}h ${m}m`:`${h}h ${m}m ${sec}s`}
 function tierClass(t){return t==='DANGER'?'bad':t==='WARN'?'warn':'ok'}
 function badgeFor(cm,t){if(cm<0) return '<span class="badge safe">no echo</span>';if(t==='DANGER') return '<span class="badge danger">DANGER</span>';if(t==='WARN') return '<span class="badge warn">WARN</span>';return '<span class="badge safe">SAFE</span>'}
+function sensorBadge(cm){
+ if(cm<0)return '<span class="badge safe">no echo</span>';
+ if(lastCfg.danger!==undefined&&cm<=lastCfg.danger)return '<span class="badge danger">DANGER</span>';
+ if(lastCfg.warn!==undefined&&cm<=lastCfg.warn)return '<span class="badge warn">WARN</span>';
+ return '<span class="badge safe">SAFE</span>';
+}
 let lastSensors=[];
 let lastCfg={};
 function valOf(id){const el=document.getElementById(id);return el?el.value:''}
@@ -229,7 +236,7 @@ function renderSensors(j){
   r.tr.classList.toggle('rowOff',s.enabled===false);
   r.rawTd.innerHTML=s.raw>=0?s.raw.toFixed(1)+' cm':(s.enabled===false?'—':'<span class="badge danger" title="'+(s.status||'fail')+'">FAILED</span>');
   r.cmTd.innerHTML=s.cm>=0?s.cm.toFixed(1)+' cm':'—';
-  r.stateTd.innerHTML=s.enabled===false?'—':(s.cm>=0?badgeFor(s.cm,j.tier):'<span class="badge danger" title="read failed">FAILED</span>');
+  r.stateTd.innerHTML=s.enabled===false?'—':(s.cm>=0?sensorBadge(s.cm):'<span class="badge danger" title="read failed">FAILED</span>');
   const on=s.enabled!==false;
   r.pwrBtn.classList.toggle('on',on);
   setInputClean('off'+i,s.offset);
